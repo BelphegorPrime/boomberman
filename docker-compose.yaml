@@ -5,8 +5,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/app/data   # persist banned.json here
-      - ./logs:/app/logs   # persist logs if needed
+      - ./data:/data   # persist banned.json here
       - ./public:/app/public    # override or provide static files
     env_file:
       - .env
