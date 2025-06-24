@@ -9,17 +9,28 @@ A harmless honeypot + simulated payload server for security testing.
 - Metrics endpoint
 
 **Usage**:
-```bash
-npm install
-npm run dev
-```
 
-Docker:
+Check out the repository then choose between
 
-```bash
-docker build -t boomberman .
-docker run -p 3000:3000 boomberman
-```
+1. Native
+
+    ```bash
+    npm install
+    npm run dev
+    ```
+
+2. Docker
+
+    ```bash
+    docker build -t boomberman .
+    docker run -p 3000:3000 boomberman
+    ```
+
+3. Docker Compose
+
+    ```bash
+    docker compose up --build
+    ```
 
 Security Notice: This project does not contain or distribute real compression bombs.
 
