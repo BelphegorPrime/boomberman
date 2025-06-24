@@ -1,0 +1,13 @@
+services:
+  boomberman:
+    build: .
+    container_name: boomberman
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data   # persist banned.json here
+      - ./logs:/app/logs   # persist logs if needed
+      - ./public:/app/public    # override or provide static files
+    env_file:
+      - .env
+    restart: unless-stopped
