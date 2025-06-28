@@ -7,7 +7,7 @@ describe('sendWebhookAlert E2E', () => {
         const testIp = '1.2.3.4';
 
         // Trigger honeypot endpoint which calls sendWebhookAlert internally
-        const res = await request(app).get('/base/pot/admin').set('X-Forwarded-For', testIp);
+        const res = await request(app).get('/tool/pot/admin').set('X-Forwarded-For', testIp);
 
         expect(res.status).toBe(403); // banned response
 

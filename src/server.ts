@@ -4,6 +4,7 @@ import express, { Router } from 'express';
 import fileRoutes from './routes/files';
 import honeypotRoutes from './routes/honeypots';
 import metricsRoutes from './routes/metrics';
+import captchaRouter from './routes/captcha'
 import { isBanned } from './utils/logger';
 import { tarpit } from './middleware/tarpit';
 import { defaultLimiter, strictLimiter } from './middleware/rateLimiter';
@@ -12,7 +13,6 @@ dotenv.config();
 
 const app = express();
 
-app.use("/tarpit", tarpit, Router());
 
 app.use(helmet());
 app.use(express.json());
@@ -33,8 +33,10 @@ app.use((req, res, next) => {
     next();
 });
 
-app.use('/files', fileRoutes);
-app.use('/base/pot', honeypotRoutes);
+app.use('/public', fileRoutes);
+app.use('/tool/tarpit', tarpit, Router());
+app.use('/tool/pot', honeypotRoutes);
+app.use('/tool/captcha', captchaRouter);
 app.use('/metrics', strictLimiter, metricsRoutes);
 
 export default app;

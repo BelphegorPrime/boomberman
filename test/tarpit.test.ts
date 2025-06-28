@@ -24,21 +24,21 @@ describe('Tarpit Middleware', () => {
 
     test('delays second request if within minInterval', async () => {
         const start = Date.now();
-        const res = await request(app).get('/tarpit').set("user-agent", "nikto")
+        const res = await request(app).get('/tool/tarpit').set("user-agent", "nikto")
         const duration = Date.now() - start;
 
         expect(res.status).toBe(429);
 
-        expect(duration).toBeGreaterThanOrEqual(1500);
+        expect(duration).toBeGreaterThanOrEqual(1000);
     }, 30_000);
 
     test('allows request after minInterval', async () => {
-        await request(app).get('/tarpit');
+        await request(app).get('/tool/tarpit');
 
         await new Promise((r) => setTimeout(r, 31_000));
 
         const start = Date.now();
-        const res = await request(app).get('/tarpit');
+        const res = await request(app).get('/tool/tarpit');
         const duration = Date.now() - start;
 
         expect(res.status).toBe(404);

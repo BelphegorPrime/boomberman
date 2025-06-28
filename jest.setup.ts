@@ -9,7 +9,7 @@ export let webhookServer: http.Server | null = null;
 export let webhookPort: number | null = null;
 export let receivedPayload: any = null;
 
-beforeEach((done) => {
+beforeAll((done) => {
     const webhookApp = express();
     webhookApp.use(express.json());
 
@@ -27,7 +27,7 @@ beforeEach((done) => {
     });
 });
 
-afterEach((done) => {
+afterAll((done) => {
     if (webhookServer) {
         webhookServer.close(() => {
             webhookServer = null;
