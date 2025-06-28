@@ -4,7 +4,7 @@ import path from 'path';
 const banFile = process.env.BAN_FILE_PATH || path.resolve(__dirname, '../../data/banned.json');
 const logFile = process.env.EVENT_LOG_PATH || path.resolve(__dirname, '../../logs/events.log');
 
-function ensureDirExistence(filePath: string) {
+export function ensureDirExistence(filePath: string) {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
@@ -39,6 +39,12 @@ export function banIP(ip: string) {
         saveBanList(bannedIPs);
         console.warn(`BANNED IP: ${ip}`);
     }
+}
+
+export async function logTarPit({ ip, delay, ua }: { ip: string, delay: number, ua: string }) {
+    const timestamp = new Date().toISOString();
+    const line = `[${timestamp}] Tarpitting ${ip} with ${delay}ms delay (UA: ${ua})\n`;
+    fs.appendFileSync(logFile, line);
 }
 
 export async function logThreat(type: 'HONEYPOT_HIT' | 'FILE_DOWNLOAD', target: string, ip: string) {

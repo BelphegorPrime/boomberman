@@ -1,23 +1,22 @@
 import dotenv from 'dotenv';
 import helmet from 'helmet';
-import express from 'express';
-import rateLimit from 'express-rate-limit';
+import express, { Router } from 'express';
 import fileRoutes from './routes/files';
 import honeypotRoutes from './routes/honeypots';
 import metricsRoutes from './routes/metrics';
 import { isBanned } from './utils/logger';
+import { tarpit } from './middleware/tarpit';
+import { defaultLimiter, strictLimiter } from './middleware/rateLimiter';
 
 dotenv.config();
 
 const app = express();
 
+app.use("/tarpit", tarpit, Router());
+
 app.use(helmet());
 app.use(express.json());
-
-app.use(rateLimit({
-    windowMs: 60_000,
-    max: 10
-}));
+app.use(defaultLimiter);
 
 // Block banned IPs
 app.use((req, res, next) => {
@@ -36,6 +35,6 @@ app.use((req, res, next) => {
 
 app.use('/files', fileRoutes);
 app.use('/base/pot', honeypotRoutes);
-app.use('/metrics', metricsRoutes);
+app.use('/metrics', strictLimiter, metricsRoutes);
 
 export default app;

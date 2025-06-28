@@ -14,10 +14,6 @@ if (!fs.existsSync(publicFolderPath)) {
 }
 
 router.get('/:filename', (req, res) => {
-    if (!fs.existsSync(publicFolderPath)) {
-        return res.status(404).send();
-    }
-
     const filePath = path.resolve(publicFolderPath, req.params.filename);
     if (fs.existsSync(filePath)) {
         const ip = req.realIp || 'unknown';
