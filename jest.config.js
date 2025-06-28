@@ -9,4 +9,7 @@ module.exports = {
     ...tsJestTransformCfg,
   },
   setupFilesAfterEnv: ['./jest.setup.ts'],
+  verbose: true,
+  collectCoverageFrom: ["./src"],
+  coverageDirectory: "./coverage",
 };

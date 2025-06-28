@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe('Boomberman e2e tests', () => {
     test('Accessing honeypot endpoint triggers ban', async () => {
-        const res = await request(app).get('/admin').set('X-Forwarded-For', '1.2.3.4');
+        const res = await request(app).get('/base/pot/admin').set('X-Forwarded-For', '1.2.3.4');
         expect(res.status).toBe(403);
         expect(isBanned('1.2.3.4')).toBe(true);
     });

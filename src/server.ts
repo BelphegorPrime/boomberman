@@ -35,7 +35,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/files', fileRoutes);
-app.use('/', honeypotRoutes);
+app.use('/base/pot', honeypotRoutes);
 app.use('/metrics', metricsRoutes);
 
 export default app;

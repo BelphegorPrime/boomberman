@@ -1,3 +1,4 @@
+
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -14,7 +15,7 @@ if (!fs.existsSync(publicFolderPath)) {
 
 router.get('/:filename', (req, res) => {
     if (!fs.existsSync(publicFolderPath)) {
-        return res.status(404).send('File not found');
+        return res.status(404).send();
     }
 
     const filePath = path.resolve(publicFolderPath, req.params.filename);
@@ -23,7 +24,7 @@ router.get('/:filename', (req, res) => {
         logThreat('FILE_DOWNLOAD', req.params.filename, ip);
         res.download(filePath);
     } else {
-        res.status(404).send('File not found');
+        res.status(404).send(); // Remove string and send status code only
     }
 });
 
