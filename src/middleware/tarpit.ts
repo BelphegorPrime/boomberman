@@ -24,8 +24,6 @@ function saveTarpitData() {
     fs.writeFileSync(tarpitFile, JSON.stringify(ipAccessData, null, 2));
 }
 
-const suspiciousUserAgents = [/curl/i, /python/i, /nikto/i, /nmap/i];
-
 const CLEANUP_INTERVAL = 60_000;
 const MAX_IDLE_TIME = 5 * 60_000;
 
@@ -56,7 +54,7 @@ export function tarpit(req: Request, res: Response, next: NextFunction) {
     ipAccessData[ip] = entry;
     saveTarpitData()
 
-    const isSuspiciousUA = suspiciousUserAgents.some(pattern => pattern.test(ua));
+    const isSuspiciousUA = isKnownBot(ua);
     const isHighFreq = entry.count > 10;
 
     if (isSuspiciousUA || isHighFreq) {

@@ -47,7 +47,7 @@ export async function logTarPit({ ip, delay, ua }: { ip: string, delay: number, 
     fs.appendFileSync(logFile, line);
 }
 
-export async function logThreat(type: 'CAPTCHA' | 'HONEYPOT_HIT' | 'FILE_DOWNLOAD', target: string, ip: string) {
+export async function logThreat(type: 'BOT_TOOLKIT_DETECTED' | 'CAPTCHA' | 'HONEYPOT_HIT' | 'FILE_DOWNLOAD', target: string, ip: string) {
     const timestamp = new Date().toISOString();
     const line = `[${timestamp}] ${type} from ${ip} -> ${target}\n`;
     fs.appendFileSync(logFile, line);
@@ -57,6 +57,7 @@ export async function logThreat(type: 'CAPTCHA' | 'HONEYPOT_HIT' | 'FILE_DOWNLOA
         case 'CAPTCHA': {
             break
         }
+        case 'BOT_TOOLKIT_DETECTED':
         case 'HONEYPOT_HIT':
         case 'FILE_DOWNLOAD': {
             banIP(ip);

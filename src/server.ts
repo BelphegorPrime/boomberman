@@ -5,9 +5,10 @@ import fileRoutes from './routes/files';
 import honeypotRoutes from './routes/honeypots';
 import metricsRoutes from './routes/metrics';
 import captchaRouter from './routes/captcha'
-import { isBanned } from './utils/logger';
+import { isBanned, logThreat } from './utils/logger';
 import { tarpit } from './middleware/tarpit';
 import { defaultLimiter, strictLimiter } from './middleware/rateLimiter';
+import { generateFaultyResponse } from './utils/generateFaultyResponse';
 
 dotenv.config();
 
@@ -31,6 +32,17 @@ app.use((req, res, next) => {
     }
 
     next();
+});
+
+app.use((req, res, next) => {
+    const ua = req.headers['user-agent'] || '';
+
+    if (isKnownBot(ua)) {
+        logThreat('BOT_TOOLKIT_DETECTED', req.path, ua);
+        generateFaultyResponse(res);
+    } else {
+        next();
+    }
 });
 
 app.use('/public', fileRoutes);
