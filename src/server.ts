@@ -18,6 +18,11 @@ const app = express();
 
 app.use(helmet());
 app.use(express.json());
+
+app.get('/api/health', (req, res) => {
+    return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
 app.use(defaultLimiter);
 
 // Block banned IPs
