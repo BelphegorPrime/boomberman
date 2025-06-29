@@ -5,7 +5,7 @@ import { getAIAdapter } from '.';
 
 const ENABLE_AI = process.env.ENABLE_AI_FAKE_RESPONSES === 'true';
 
-const MAX_FILESIZE_BYTES = Number(process.env.MAX_FAKE_RESPONSE_FILESIZE_BYTES || 0);
+const MAX_FILESIZE_BYTES = Number(process.env.MAX_FAKE_RESPONSE_FILESIZE_BYTES || 5000);
 const fakeResponeFile = process.env.AI_FAKE_RESPONSES_PATH || path.resolve(__dirname, '../../data/fakeResponses.json');
 ensureDirExistence(fakeResponeFile);
 
