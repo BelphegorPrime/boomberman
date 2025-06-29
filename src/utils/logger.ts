@@ -42,11 +42,16 @@ export async function logTarPit({ ip, delay, ua }: { ip: string, delay: number, 
     fs.appendFileSync(logFile, line);
 }
 
-export async function logThreat(type: 'BOT_TOOLKIT_DETECTED' | 'CAPTCHA' | 'HONEYPOT_HIT' | 'FILE_DOWNLOAD', target: string, ip: string) {
+export function log(data: string) {
     const timestamp = new Date().toISOString();
-    const line = `[${timestamp}] ${type} from ${ip} -> ${target}\n`;
+    const line = `[${timestamp}] ${data}\n`;
     fs.appendFileSync(logFile, line);
     console.log(line.trim());
+    return { timestamp }
+}
+
+export async function logThreat(type: 'BOT_TOOLKIT_DETECTED' | 'CAPTCHA' | 'HONEYPOT_HIT' | 'FILE_DOWNLOAD', target: string, ip: string) {
+    const { timestamp } = log(`${type} from ${ip} -> ${target}`)
 
     switch (type) {
         case 'CAPTCHA': {
@@ -63,8 +68,9 @@ export async function logThreat(type: 'BOT_TOOLKIT_DETECTED' | 'CAPTCHA' | 'HONE
 
 export async function sendWebhookAlert(payload: { type: string, target: string, ip: string, timestamp: string }) {
     const url = process.env.WEBHOOK_URL;
-    console.log({ url })
-    if (!url) return;
+    if (!url) {
+        return;
+    }
 
     try {
         const res = await fetch(url, {

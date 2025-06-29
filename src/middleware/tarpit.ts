@@ -62,13 +62,10 @@ export function tarpit(req: Request, res: Response, next: NextFunction) {
         const delay = Math.min(entry.count * 1000, 30_000);
         logTarPit({ ip, delay, ua })
 
+        req.socket.setTimeout(0);
+
         setTimeout(() => {
-            if (entry.count > 20) {
-                req.socket.setTimeout(0);
-                return;
-            } else {
-                res.status(429).send('Too many suspicious requests. Slow down.');
-            }
+            res.status(429).send('Too many suspicious requests. Slow down.');
         }, delay);
 
         return;

@@ -5,6 +5,7 @@ import fileRoutes from './routes/files';
 import honeypotRoutes from './routes/honeypots';
 import metricsRoutes from './routes/metrics';
 import captchaRouter from './routes/captcha'
+import toolRouter from './routes/tool'
 import { isBanned, logThreat } from './utils/logger';
 import { tarpit } from './middleware/tarpit';
 import { defaultLimiter, strictLimiter } from './middleware/rateLimiter';
@@ -14,7 +15,6 @@ import { startHourlyFakeResponseTask } from './ai/fakeResponseManager';
 dotenv.config();
 
 const app = express();
-
 
 app.use(helmet());
 app.use(express.json());
@@ -51,6 +51,7 @@ app.use('/tool/tarpit', tarpit, Router());
 app.use('/tool/pot', honeypotRoutes);
 app.use('/tool/captcha', captchaRouter);
 app.use('/metrics', strictLimiter, metricsRoutes);
+app.use('/', toolRouter);
 
 startHourlyFakeResponseTask();
 

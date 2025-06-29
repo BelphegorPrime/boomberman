@@ -1,15 +1,20 @@
-import { Router } from 'express';
+import { Request, Router } from 'express';
 import { logThreat } from '../utils/logger';
+import { generateFaultyResponse } from '../utils/generateFaultyResponse';
 
 const honeypots = ['/admin', '/shell', '/login', '/wp-admin', '/.env'];
 
 const router = Router();
 
+export const handleHoneyPot = (req: Request, path = "/") => {
+    const ip = req.realIp || 'unknown';
+    logThreat('HONEYPOT_HIT', path, ip);
+}
+
 honeypots.forEach(path => {
     router.all(path, (req, res) => {
-        const ip = req.realIp || 'unknown';
-        logThreat('HONEYPOT_HIT', path, ip);
-        res.status(403).send('Access denied');
+        handleHoneyPot(req, path)
+        generateFaultyResponse(res);
     });
 });
 
