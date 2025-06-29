@@ -9,6 +9,7 @@ import { isBanned, logThreat } from './utils/logger';
 import { tarpit } from './middleware/tarpit';
 import { defaultLimiter, strictLimiter } from './middleware/rateLimiter';
 import { generateFaultyResponse } from './utils/generateFaultyResponse';
+import { startHourlyFakeResponseTask } from './ai/fakeResponseManager';
 
 dotenv.config();
 
@@ -50,5 +51,7 @@ app.use('/tool/tarpit', tarpit, Router());
 app.use('/tool/pot', honeypotRoutes);
 app.use('/tool/captcha', captchaRouter);
 app.use('/metrics', strictLimiter, metricsRoutes);
+
+startHourlyFakeResponseTask();
 
 export default app;

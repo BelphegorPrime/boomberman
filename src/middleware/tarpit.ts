@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { ensureDirExistence, logTarPit } from '../utils/logger';
+import { logTarPit } from '../utils/logger';
+import { ensureDirExistence } from '../utils/ensureDirExistence';
 
 const tarpitFile = process.env.TARPIT_FILE_PATH || path.resolve(__dirname, '../../data/tarpitAccess.json');
 ensureDirExistence(tarpitFile)

@@ -1,16 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import { ensureDirExistence } from './ensureDirExistence';
 
 const banFile = process.env.BAN_FILE_PATH || path.resolve(__dirname, '../../data/banned.json');
-const logFile = process.env.EVENT_LOG_PATH || path.resolve(__dirname, '../../logs/events.log');
-
-export function ensureDirExistence(filePath: string) {
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-}
 ensureDirExistence(banFile);
+
+const logFile = process.env.EVENT_LOG_PATH || path.resolve(__dirname, '../../logs/events.log');
 ensureDirExistence(logFile);
 
 function loadBanList(): Set<string> {
