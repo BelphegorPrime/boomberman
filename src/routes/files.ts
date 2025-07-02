@@ -15,6 +15,13 @@ if (!fs.existsSync(publicFolderPath)) {
 
 router.get('/:filename', (req, res) => {
     const filePath = path.resolve(publicFolderPath, req.params.filename);
+
+    // Security: Prevent directory traversal attacks
+    if (!filePath.startsWith(publicFolderPath)) {
+        logThreat('DIRECTORY_TRAVERSAL_ATTEMPT', req.params.filename, req.realIp || 'unknown');
+        return res.status(403).send('Forbidden');
+    }
+
     if (fs.existsSync(filePath)) {
         const ip = req.realIp || 'unknown';
         logThreat('FILE_DOWNLOAD', req.params.filename, ip);

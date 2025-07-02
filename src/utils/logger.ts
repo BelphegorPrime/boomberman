@@ -50,7 +50,7 @@ export function log(data: string) {
     return { timestamp }
 }
 
-export async function logThreat(type: 'BOT_TOOLKIT_DETECTED' | 'CAPTCHA' | 'HONEYPOT_HIT' | 'FILE_DOWNLOAD', target: string, ip: string) {
+export async function logThreat(type: 'DIRECTORY_TRAVERSAL_ATTEMPT' | 'BOT_TOOLKIT_DETECTED' | 'CAPTCHA' | 'HONEYPOT_HIT' | 'FILE_DOWNLOAD', target: string, ip: string) {
     const { timestamp } = log(`${type} from ${ip} -> ${target}`)
 
     switch (type) {

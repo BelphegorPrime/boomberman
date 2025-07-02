@@ -24,12 +24,12 @@ export class OllamaAdapter implements AIAdapter {
     }
 
     async generateResponse(prompt: string): Promise<Record<string, any> | null> {
-        try {
-            const isRunning = await this.healthCheck()
-            if (!isRunning) {
-                return null
-            }
+        const isRunning = await this.healthCheck();
+        if (!isRunning) {
+            throw new Error('Ollama is not running');
+        }
 
+        try {
             const res = await fetch(`${this.baseUrl}/api/generate`, {
                 method: 'POST',
                 headers: {
@@ -39,24 +39,22 @@ export class OllamaAdapter implements AIAdapter {
                     model: this.model,
                     prompt,
                     stream: false,
-                    format: {
-                        type: "object",
-                        properties: {},
-                        required: [],
-                        "additionalProperties": true
-                    }
+                    format: 'json',
                 }),
             });
 
-            const data = await res.json()
+            if (!res.ok) {
+                throw new Error(`Failed to generate response: ${res.statusText}`);
+            }
 
+            const data = await res.json();
             const content = data.response?.trim();
 
             return content ? parseJSON(content) || null : null;
         } catch (err) {
-            const error = err as Error
+            const error = err as Error;
             console.error('[OllamaAdapter] Error:', error.message);
-            return null;
+            throw error;
         }
     }
 }

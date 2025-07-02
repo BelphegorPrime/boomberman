@@ -1,4 +1,5 @@
 import { Request, Response, Router } from 'express';
+import { z } from 'zod';
 import { handleHoneyPot } from './honeypots';
 import { tarpit } from '../middleware/tarpit';
 import { generateFaultyResponse } from '../utils/generateFaultyResponse';
@@ -10,6 +11,8 @@ const toolsMap: Record<TOOL, (req: Request) => any> = {
     honeyPot: (req: Request) => handleHoneyPot(req, "/"),
     captcha: (req: Request) => { },
 }
+
+const toolsSchema = z.string().transform(val => val.split(',').map(t => t.trim())).pipe(z.array(z.enum(["tarpit", "honeyPot", "captcha"])));
 
 const processTools = async (req: Request, res: Response, tools: TOOL[]) => {
     for (const tool of tools) {
@@ -23,16 +26,13 @@ const processTools = async (req: Request, res: Response, tools: TOOL[]) => {
 const router = Router();
 
 router.get('/', async (req, res) => {
-    const toolsQuery = req.query.tools as "string" | undefined;
-    if (!toolsQuery) {
-        return res.status(400).json({ error: 'Missing tools query parameter' });
-    }
-    const requestedTools = toolsQuery.split(',').map(t => t.trim()) as TOOL[];
+    const validationResult = toolsSchema.safeParse(req.query.tools);
 
-    const invalidTools = requestedTools.filter(t => !(t in toolsMap));
-    if (invalidTools.length > 0) {
-        return res.status(400).json({ error: `Unknown tools requested: ${invalidTools.join(', ')}` });
+    if (!validationResult.success) {
+        return res.status(400).json({ error: 'Invalid tools query parameter', issues: validationResult.error.issues });
     }
+
+    const requestedTools = validationResult.data;
 
     if (requestedTools.includes('tarpit')) {
         tarpit(req, res, () => { });

@@ -11,11 +11,13 @@ export const handleHoneyPot = (req: Request, path = "/") => {
     logThreat('HONEYPOT_HIT', path, ip);
 }
 
-honeypots.forEach(path => {
+const createHoneypotRoute = (path: string) => {
     router.all(path, (req, res) => {
-        handleHoneyPot(req, path)
+        handleHoneyPot(req, path);
         generateFaultyResponse(res);
     });
-});
+};
+
+honeypots.forEach(createHoneypotRoute);
 
 export default router;
