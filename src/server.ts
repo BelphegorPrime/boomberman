@@ -1,4 +1,4 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import "./utils/fileLogger";
 import helmet from 'helmet';
 import express, { Router } from 'express';
@@ -12,8 +12,6 @@ import { tarpit } from './middleware/tarpit';
 import { defaultLimiter, strictLimiter } from './middleware/rateLimiter';
 import { generateFaultyResponse } from './utils/generateFaultyResponse';
 import { startHourlyFakeResponseTask } from './ai/fakeResponseManager';
-
-dotenv.config();
 
 const app = express();
 
