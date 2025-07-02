@@ -7,7 +7,9 @@
         "test": "jest",
         "build": "tsc",
         "start": "ts-node src/start.ts",
-        "dev": "ts-node-dev src/start.ts"
+        "dev": "ts-node-dev src/start.ts",
+        "lint": "eslint . --ext .ts",
+        "format": "prettier --write ."
     },
     "author": "Marcel Rösler",
     "license": "MIT",
@@ -23,10 +25,17 @@
         "@types/jest": "^30.0.0",
         "@types/node": "^20.10.6",
         "@types/supertest": "^6.0.3",
+        "@typescript-eslint/eslint-plugin": "^8.35.1",
+        "@typescript-eslint/parser": "^8.35.1",
+        "eslint": "^9.30.1",
+        "eslint-config-prettier": "^10.1.5",
+        "eslint-plugin-prettier": "^5.5.1",
         "jest": "^30.0.2",
+        "prettier": "^3.6.2",
         "supertest": "^7.1.1",
         "ts-jest": "^29.4.0",
         "ts-node": "^10.9.2",
-        "typescript": "^5.4.5"
+        "typescript": "^5.4.5",
+        "typescript-eslint": "^8.35.1"
     }
 }

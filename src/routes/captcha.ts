@@ -5,26 +5,27 @@ import { delay } from '../utils/delay';
 const router = Router();
 
 const fakeQuestions = [
-    "What is 3 + 5?",
-    "Type the characters: 4hT7L9",
-    "Solve: What is the capital of Spain?",
+  'What is 3 + 5?',
+  'Type the characters: 4hT7L9',
+  'Solve: What is the capital of Spain?',
 ];
 
 const redirectTargets = [
-    '/404',
-    '/not-found',
-    '/oops',
-    '/secure/portal',
-    '/admin/idashboard',
-    '/admin/panel',
+  '/404',
+  '/not-found',
+  '/oops',
+  '/secure/portal',
+  '/admin/idashboard',
+  '/admin/panel',
 ];
 
 router.get('/login', async (req, res) => {
-    const question = fakeQuestions[Math.floor(Math.random() * fakeQuestions.length)];
+  const question =
+    fakeQuestions[Math.floor(Math.random() * fakeQuestions.length)];
 
-    await delay(1500 + Math.random() * 1500);
+  await delay(1500 + Math.random() * 1500);
 
-    const html = `
+  const html = `
         <html>
             <body>
                 <h1>Secure Admin Login</h1>
@@ -36,30 +37,31 @@ router.get('/login', async (req, res) => {
             </body>
         </html>
     `;
-    res.type('html').send(html);
+  res.type('html').send(html);
 });
 
 router.post('/login', async (req, res) => {
-    const ip = req.realIp || 'unknown';
-    logThreat('CAPTCHA', '/login', ip);
+  const ip = req.realIp || 'unknown';
+  logThreat('CAPTCHA', '/login', ip);
 
-    await delay(2000 + Math.random() * 2000);
+  await delay(2000 + Math.random() * 2000);
 
-    const redirectUrl = redirectTargets[Math.floor(Math.random() * redirectTargets.length)];
-    const delaySec = 1 + Math.floor(Math.random() * 4);
-    res.setHeader('Refresh', `${delaySec}; URL=${redirectUrl}`);
+  const redirectUrl =
+    redirectTargets[Math.floor(Math.random() * redirectTargets.length)];
+  const delaySec = 1 + Math.floor(Math.random() * 4);
+  res.setHeader('Refresh', `${delaySec}; URL=${redirectUrl}`);
 
-    const fakeStatus = [200, 403, 401, 500, 418][Math.floor(Math.random() * 5)];
-    res.status(fakeStatus)
+  const fakeStatus = [200, 403, 401, 500, 418][Math.floor(Math.random() * 5)];
+  res.status(fakeStatus);
 
-    const probability = Math.random();
-    if (probability < 0.2) {
-        return res.send("CAPTCHA failed. Try again.");
-    } else if (Math.random() < 0.5) {
-        return res.send("CAPTCHA verification error. Please reload.");
-    }
+  const probability = Math.random();
+  if (probability < 0.2) {
+    return res.send('CAPTCHA failed. Try again.');
+  } else if (Math.random() < 0.5) {
+    return res.send('CAPTCHA verification error. Please reload.');
+  }
 
-    return res.status(200).send(`
+  return res.status(200).send(`
         <html>
           <head><title>Verifying...</title></head>
           <body>
