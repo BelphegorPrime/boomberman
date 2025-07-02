@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import "./utils/fileLogger";
 import helmet from 'helmet';
 import express, { Router } from 'express';
 import fileRoutes from './routes/files';
