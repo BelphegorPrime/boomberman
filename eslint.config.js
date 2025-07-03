@@ -11,8 +11,19 @@ export default tseslint.config(
       '.env.test',
       '.env.example',
       'jest.config.js',
+      'package.json',
       '.prettierrc',
     ],
+    rules: {
+      '@typescript-eslint/no-explicit-any': [
+        'error',
+        {
+          fixToUnknown: true,
+          ignoreRestArgs: false,
+        },
+      ],
+      'no-empty': 'off',
+    },
   },
   eslintRecommended.configs.recommended,
   ...tseslint.configs.recommended,

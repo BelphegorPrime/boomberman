@@ -43,7 +43,7 @@ function loadCacheFromDisk() {
 
 function appendToDisk(entry: {
   timestamp: string;
-  content: Record<string, any>;
+  content: Record<string, unknown>;
 }) {
   try {
     fs.appendFileSync(fakeResponeFile, JSON.stringify(entry) + '\n');
@@ -65,7 +65,7 @@ async function appendNewFakeResponse() {
       );
       return;
     }
-  } catch (err) {
+  } catch {
     // File might not exist yet, which is fine
   }
 
@@ -86,7 +86,7 @@ async function appendNewFakeResponse() {
   }
 }
 
-function getRandomFakeResponse(): Record<string, any> | null {
+function getRandomFakeResponse(): Record<string, unknown> | null {
   if (cache.length === 0) {
     return null;
   }

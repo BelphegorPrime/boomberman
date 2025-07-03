@@ -8,7 +8,7 @@ A honeypot and simulated payload server for safe security testing and intrusion 
 
 ## 🧪 Features
 
-- **Fake ZIP/GZIP bombs** *(non-malicious, safe for testing)*
+- **Fake ZIP/GZIP bombs** _(non-malicious, safe for testing)_
 - **Tarpit** middleware to delay suspicious requests
 - **Honeypot endpoints** that simulate vulnerable tools or pages
 - **Captcha endpoint** to trap automated scripts
@@ -27,7 +27,7 @@ A honeypot and simulated payload server for safe security testing and intrusion 
 ```bash
 npm install
 npm run dev
-````
+```
 
 ### 2. Docker
 
@@ -59,8 +59,8 @@ OLLAMA_MODEL=llama3
 
 The server will automatically:
 
-* Periodically generate and cache fake responses using the AI
-* Serve corrupted or misleading payloads to attackers via honeypots
+- Periodically generate and cache fake responses using the AI
+- Serve corrupted or misleading payloads to attackers via honeypots
 
 ---
 
@@ -126,10 +126,10 @@ services:
   boomberman:
     build: .
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.boomberman.rule=Host(`yourdomain.com`)"
-      - "traefik.http.routers.boomberman.entrypoints=web"
-      - "traefik.http.services.boomberman.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.boomberman.rule=Host(`yourdomain.com`)'
+      - 'traefik.http.routers.boomberman.entrypoints=web'
+      - 'traefik.http.services.boomberman.loadbalancer.server.port=3000'
 ```
 
 > 🔒 Tip: If you're running behind HTTPS, ensure the `X-Forwarded-Proto` header is correctly set by your proxy for accurate request logging and security analysis.

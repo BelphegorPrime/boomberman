@@ -6,10 +6,12 @@ import { generateFaultyResponse } from '../utils/generateFaultyResponse';
 
 type TOOL = 'tarpit' | 'honeyPot' | 'captcha';
 
-const toolsMap: Record<TOOL, (req: Request) => any> = {
-  tarpit: (req: Request) => {},
+const noop = () => {};
+
+const toolsMap: Record<TOOL, (req: Request) => unknown> = {
+  tarpit: () => {},
   honeyPot: (req: Request) => handleHoneyPot(req, '/'),
-  captcha: (req: Request) => {},
+  captcha: () => {},
 };
 
 const toolsSchema = z
@@ -21,7 +23,9 @@ const processTools = async (req: Request, res: Response, tools: TOOL[]) => {
   for (const tool of tools) {
     try {
       await toolsMap[tool](req);
-    } catch (e) {}
+    } catch (error) {
+      console.error(`Error processing tool ${tool}:`, error);
+    }
   }
 };
 
@@ -40,7 +44,7 @@ router.get('/', async (req, res) => {
   const requestedTools = validationResult.data;
 
   if (requestedTools.includes('tarpit')) {
-    tarpit(req, res, () => {});
+    tarpit(req, res, noop);
   }
 
   await processTools(req, res, requestedTools);

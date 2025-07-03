@@ -3,10 +3,10 @@ services:
     build: .
     container_name: boomberman
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
-      - ./data:/data   # persist banned.json here
-      - ./public:/app/public    # override or provide static files
+      - ./data:/data # persist banned.json here
+      - ./public:/app/public # override or provide static files
     env_file:
       - .env
     restart: unless-stopped

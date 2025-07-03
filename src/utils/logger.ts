@@ -112,7 +112,7 @@ export async function sendWebhookAlert(payload: {
     } else {
       console.log(`Webhook alert sent for ${payload.ip}`);
     }
-  } catch (err: any) {
-    console.error('Webhook fetch failed:', err.message);
+  } catch (err: unknown) {
+    console.error('Webhook fetch failed:', (err as Error).message);
   }
 }

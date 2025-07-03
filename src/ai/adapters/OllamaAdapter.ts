@@ -23,7 +23,9 @@ export class OllamaAdapter implements AIAdapter {
     }
   }
 
-  async generateResponse(prompt: string): Promise<Record<string, unknown> | null> {
+  async generateResponse(
+    prompt: string,
+  ): Promise<Record<string, unknown> | null> {
     const isRunning = await this.healthCheck();
     if (!isRunning) {
       throw new Error('Ollama is not running');
