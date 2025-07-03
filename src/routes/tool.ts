@@ -14,6 +14,7 @@ const toolsMap: Record<TOOL, (req: Request) => unknown> = {
   captcha: () => { },
 };
 
+const allTools: TOOL[] = ['tarpit', 'honeyPot', 'captcha'];
 const toolsSchema = z
   .string()
   .transform((val) => val.split(',').map((t) => t.trim()))
@@ -34,14 +35,10 @@ const router = Router();
 router.get('/', async (req, res) => {
   const validationResult = toolsSchema.safeParse(req.query.tools);
 
-  if (!validationResult.success) {
-    return res.status(400).json({
-      error: 'Invalid tools query parameter',
-      issues: validationResult.error.issues,
-    });
+  let requestedTools: TOOL[] = allTools;
+  if (validationResult.success) {
+    requestedTools = validationResult.data;
   }
-
-  const requestedTools = validationResult.data;
 
   if (requestedTools.includes('tarpit')) {
     tarpit(req, res, noop);

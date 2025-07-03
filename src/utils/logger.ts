@@ -10,32 +10,53 @@ const logFile =
   process.env.EVENT_LOG_PATH || path.resolve(process.cwd(), 'logs/events.log');
 ensureDirExistence(logFile);
 
-function loadBanList(): Set<string> {
+let ipAccessData: Record<string, { count: number; lastAccess: number }> = {};
+
+function loadBanFile() {
   try {
     const data = fs.readFileSync(banFile, 'utf-8');
-    const parsed = JSON.parse(data);
-    return new Set(Array.isArray(parsed) ? parsed : []);
+    ipAccessData = JSON.parse(data);
   } catch {
-    return new Set();
+    ipAccessData = {};
   }
 }
+loadBanFile();
 
-const bannedIPs = loadBanList();
-
-function saveBanList(banned: Set<string>) {
-  fs.writeFileSync(banFile, JSON.stringify([...banned], null, 2));
+function saveBanFile() {
+  fs.writeFileSync(banFile, JSON.stringify(ipAccessData, null, 2));
 }
 
+const CLEANUP_INTERVAL = 60_000;
+const MAX_IDLE_TIME = 5 * 60_000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of Object.entries(ipAccessData)) {
+    if (now - data.lastAccess > MAX_IDLE_TIME) {
+      delete ipAccessData[ip];
+    }
+  }
+  saveBanFile();
+}, CLEANUP_INTERVAL);
+
 export function isBanned(ip: string): boolean {
-  return bannedIPs.has(ip);
+  return ipAccessData[ip] && ipAccessData[ip].count >= 3;
 }
 
 export function banIP(ip: string) {
-  if (!bannedIPs.has(ip)) {
-    bannedIPs.add(ip);
-    saveBanList(bannedIPs);
-    console.warn(`BANNED IP: ${ip}`);
+  const now = Date.now();
+  const entry = ipAccessData[ip] || { count: 0, lastAccess: 0 };
+  const timeSinceLast = now - entry.lastAccess;
+
+  if (timeSinceLast > 30_000) {
+    entry.count = 0;
   }
+
+  entry.count += 1;
+  entry.lastAccess = now;
+  ipAccessData[ip] = entry;
+
+  saveBanFile();
+  console.warn(`BANNED IP: ${ip}`);
 }
 
 export async function logTarPit({
@@ -80,9 +101,10 @@ export async function logThreat(
     case 'HONEYPOT_HIT':
     case 'FILE_DOWNLOAD': {
       banIP(ip);
-      await sendWebhookAlert({ type, target, ip, timestamp });
     }
   }
+
+  await sendWebhookAlert({ type, target, ip, timestamp });
 }
 
 export async function sendWebhookAlert(payload: {

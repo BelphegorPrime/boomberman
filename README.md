@@ -84,7 +84,7 @@ Configure in `.env`:
 TARPIT_FILE_PATH=/data/tarpitAccess.json
 BAN_FILE_PATH=/data/banned.json
 EVENT_LOG_PATH=/data/events.log
-AI_FAKE_RESPONSES_PATH=/data/fakeResponses.json
+AI_FAKE_RESPONSES_PATH=/data/fakeResponses.jsonl
 MAX_FAKE_RESPONSE_FILESIZE_BYTES=50000
 ```
 
