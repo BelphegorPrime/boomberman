@@ -41,18 +41,18 @@ function loadCacheFromDisk() {
   });
 }
 
-function appendToDisk(entry: {
-  timestamp: string;
-  content: Record<string, unknown>;
-}) {
+function saveToDisk() {
   try {
-    fs.appendFileSync(fakeResponeFile, JSON.stringify(entry) + '\n');
+    fs.writeFileSync(
+      fakeResponeFile,
+      cache.map((e) => JSON.stringify(e)).join('\n'),
+    );
   } catch (err) {
     console.error('Failed to save fake responses:', err);
   }
 }
 
-async function appendNewFakeResponse() {
+async function generateNewFakeResponse() {
   if (!ENABLE_AI) {
     return;
   }
@@ -80,7 +80,8 @@ async function appendNewFakeResponse() {
 
     const entry = { timestamp: new Date().toISOString(), content };
     cache.push(entry);
-    appendToDisk(entry);
+    saveToDisk();
+    console.log('New fake response generated and saved to disk.');
   } catch (error) {
     console.error('Failed to generate or save fake response:', error);
   }
@@ -96,16 +97,25 @@ function getRandomFakeResponse(): Record<string, unknown> | null {
   return random.content;
 }
 
-function startHourlyFakeResponseTask() {
+async function startHourlyFakeResponseTask() {
   if (!ENABLE_AI) {
     return;
   }
 
   loadCacheFromDisk();
 
-  setInterval(appendNewFakeResponse, 60 * 60 * 1000);
+  setInterval(generateNewFakeResponse, 60 * 60 * 1000);
 
-  appendNewFakeResponse();
+  if (process.env.AI_PRE_POPULATE_CACHE === 'true') {
+    for (let i = 0; i < 20; i++) {
+      await generateNewFakeResponse();
+      console.log(
+        `Pre-populated fake response file with ${i + 1}/20 responses.`,
+      );
+    }
+  } else {
+    await generateNewFakeResponse();
+  }
 }
 
 export { startHourlyFakeResponseTask, getRandomFakeResponse };
