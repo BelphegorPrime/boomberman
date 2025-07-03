@@ -1,17 +1,16 @@
 import type { Request, Response, NextFunction } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { logTarPit } from '../utils/logger';
-import { ensureDirExistence } from '../utils/ensureDirExistence';
-import { isKnownBot } from '../utils/isKnownBot';
+import { logTarPit } from '../utils/logger.js';
+import { ensureDirExistence } from '../utils/ensureDirExistence.js';
+import { isKnownBot } from '../utils/isKnownBot.js';
 
 const tarpitFile =
   process.env.TARPIT_FILE_PATH ||
-  path.resolve(__dirname, '../../data/tarpitAccess.json');
+  path.resolve(process.cwd(), 'data/tarpitAccess.json');
 ensureDirExistence(tarpitFile);
 const logFile =
-  process.env.EVENT_LOG_PATH ||
-  path.resolve(__dirname, '../../logs/events.log');
+  process.env.EVENT_LOG_PATH || path.resolve(process.cwd(), 'logs/events.log');
 ensureDirExistence(logFile);
 
 let ipAccessData: Record<string, { count: number; lastAccess: number }> = {};

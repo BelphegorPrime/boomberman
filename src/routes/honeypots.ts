@@ -1,6 +1,6 @@
 import { Request, Router } from 'express';
-import { logThreat } from '../utils/logger';
-import { generateFaultyResponse } from '../utils/generateFaultyResponse';
+import { logThreat } from '../utils/logger.js';
+import { generateFaultyResponse } from '../utils/generateFaultyResponse.js';
 
 const honeypots = ['/admin', '/shell', '/login', '/wp-admin', '/.env'];
 

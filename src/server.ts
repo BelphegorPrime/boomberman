@@ -1,18 +1,18 @@
 import 'dotenv/config';
-import './utils/fileLogger';
+import './utils/fileLogger.js';
 import helmet from 'helmet';
 import express, { Router } from 'express';
-import fileRoutes from './routes/files';
-import honeypotRoutes from './routes/honeypots';
-import metricsRoutes from './routes/metrics';
-import captchaRouter from './routes/captcha';
-import toolRouter from './routes/tool';
-import { isBanned, logThreat } from './utils/logger';
-import { tarpit } from './middleware/tarpit';
-import { defaultLimiter, strictLimiter } from './middleware/rateLimiter';
-import { generateFaultyResponse } from './utils/generateFaultyResponse';
-import { startHourlyFakeResponseTask } from './ai/fakeResponseManager';
-import { isKnownBot } from './utils/isKnownBot';
+import fileRoutes from './routes/files.js';
+import honeypotRoutes from './routes/honeypots.js';
+import metricsRoutes from './routes/metrics.js';
+import captchaRouter from './routes/captcha.js';
+import toolRouter from './routes/tool.js';
+import { isBanned, logThreat } from './utils/logger.js';
+import { tarpit } from './middleware/tarpit.js';
+import { defaultLimiter, strictLimiter } from './middleware/rateLimiter.js';
+import { generateFaultyResponse } from './utils/generateFaultyResponse.js';
+import { startHourlyFakeResponseTask } from './ai/fakeResponseManager.js';
+import { isKnownBot } from './utils/isKnownBot.js';
 
 const app = express();
 

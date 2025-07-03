@@ -1,12 +1,12 @@
 import { Response } from 'express';
-import { getRandomFakeResponse } from '../ai/fakeResponseManager';
-import { corruptJsonString } from './corruptJsonString';
 import zlib from 'zlib';
 import fs from 'fs';
 import path from 'path';
-import { log } from './logger';
+import { getRandomFakeResponse } from '../ai/fakeResponseManager.js';
+import { corruptJsonString } from './corruptJsonString.js';
+import { log } from './logger.js';
 
-const publicFolderPath = path.resolve(__dirname, '../../public');
+const publicFolderPath = path.resolve(process.cwd(), 'public');
 
 if (!fs.existsSync(publicFolderPath)) {
   console.warn(`[Warning] Public folder does not exist at ${publicFolderPath}`);

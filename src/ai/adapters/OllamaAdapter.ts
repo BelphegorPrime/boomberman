@@ -1,5 +1,5 @@
-import { parseJSON } from '../../utils/parseJSON';
-import { AIAdapter } from './AIAdapter';
+import { parseJSON } from '../../utils/parseJSON.js';
+import { AIAdapter } from './AIAdapter.js';
 
 export class OllamaAdapter implements AIAdapter {
   private baseUrl: string;

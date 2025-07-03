@@ -1,5 +1,5 @@
-import { OllamaAdapter } from './adapters/OllamaAdapter';
-import { AIAdapter } from './adapters/AIAdapter';
+import { OllamaAdapter } from './adapters/OllamaAdapter.js';
+import { AIAdapter } from './adapters/AIAdapter.js';
 
 let adapter: AIAdapter | null = null;
 

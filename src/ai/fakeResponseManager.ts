@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
-import { ensureDirExistence } from '../utils/ensureDirExistence';
-import { getAIAdapter } from '.';
+import { ensureDirExistence } from '../utils/ensureDirExistence.js';
+import { getAIAdapter } from './index.js';
 
 const ENABLE_AI = process.env.ENABLE_AI_FAKE_RESPONSES === 'true';
 
@@ -11,7 +11,7 @@ const MAX_FILESIZE_BYTES = Number(
 );
 const fakeResponeFile =
   process.env.AI_FAKE_RESPONSES_PATH ||
-  path.resolve(__dirname, '../../data/fakeResponses.jsonl');
+  path.resolve(process.cwd(), 'data/fakeResponses.jsonl');
 ensureDirExistence(fakeResponeFile);
 
 // In-memory cache to avoid constant disk reads

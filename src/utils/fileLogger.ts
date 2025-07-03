@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { ensureDirExistence } from './ensureDirExistence';
+import { ensureDirExistence } from './ensureDirExistence.js';
 
 const orig = {
   log: console.log,
@@ -9,7 +9,7 @@ const orig = {
 };
 
 const logFile =
-  process.env.LOG_FILE_PATH || path.resolve(__dirname, '../../data/app.log');
+  process.env.LOG_FILE_PATH || path.resolve(process.cwd(), 'data/app.log');
 ensureDirExistence(logFile);
 
 const logStream = fs.createWriteStream(logFile, { flags: 'a' });

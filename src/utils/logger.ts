@@ -1,15 +1,13 @@
 import fs from 'fs';
 import path from 'path';
-import { ensureDirExistence } from './ensureDirExistence';
+import { ensureDirExistence } from './ensureDirExistence.js';
 
 const banFile =
-  process.env.BAN_FILE_PATH ||
-  path.resolve(__dirname, '../../data/banned.json');
+  process.env.BAN_FILE_PATH || path.resolve(process.cwd(), 'data/banned.json');
 ensureDirExistence(banFile);
 
 const logFile =
-  process.env.EVENT_LOG_PATH ||
-  path.resolve(__dirname, '../../logs/events.log');
+  process.env.EVENT_LOG_PATH || path.resolve(process.cwd(), 'logs/events.log');
 ensureDirExistence(logFile);
 
 function loadBanList(): Set<string> {

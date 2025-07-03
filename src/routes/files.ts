@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { logThreat } from '../utils/logger';
+import { logThreat } from '../utils/logger.js';
 
 const router = Router();
 
-const publicFolderPath = path.resolve(__dirname, '../../public');
+const publicFolderPath = path.resolve(process.cwd(), 'public');
 
 if (!fs.existsSync(publicFolderPath)) {
   console.warn(`[Warning] Public folder does not exist at ${publicFolderPath}`);

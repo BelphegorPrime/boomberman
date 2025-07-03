@@ -1,17 +1,17 @@
 import { Request, Response, Router } from 'express';
 import { z } from 'zod';
-import { handleHoneyPot } from './honeypots';
-import { tarpit } from '../middleware/tarpit';
-import { generateFaultyResponse } from '../utils/generateFaultyResponse';
+import { handleHoneyPot } from './honeypots.js';
+import { tarpit } from '../middleware/tarpit.js';
+import { generateFaultyResponse } from '../utils/generateFaultyResponse.js';
 
 type TOOL = 'tarpit' | 'honeyPot' | 'captcha';
 
-const noop = () => {};
+const noop = () => { };
 
 const toolsMap: Record<TOOL, (req: Request) => unknown> = {
-  tarpit: () => {},
+  tarpit: () => { },
   honeyPot: (req: Request) => handleHoneyPot(req, '/'),
-  captcha: () => {},
+  captcha: () => { },
 };
 
 const toolsSchema = z
