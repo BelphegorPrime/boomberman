@@ -13,6 +13,6 @@ const knownBots = [
   /nmap/i,
 ];
 
-function isKnownBot(userAgent: string = ''): boolean {
+export function isKnownBot(userAgent: string = ''): boolean {
   return knownBots.some((pattern) => pattern.test(userAgent));
 }

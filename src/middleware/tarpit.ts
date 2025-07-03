@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { logTarPit } from '../utils/logger';
 import { ensureDirExistence } from '../utils/ensureDirExistence';
+import { isKnownBot } from '../utils/isKnownBot';
 
 const tarpitFile =
   process.env.TARPIT_FILE_PATH ||

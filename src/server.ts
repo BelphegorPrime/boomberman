@@ -12,6 +12,7 @@ import { tarpit } from './middleware/tarpit';
 import { defaultLimiter, strictLimiter } from './middleware/rateLimiter';
 import { generateFaultyResponse } from './utils/generateFaultyResponse';
 import { startHourlyFakeResponseTask } from './ai/fakeResponseManager';
+import { isKnownBot } from './utils/isKnownBot';
 
 const app = express();
 
