@@ -32,7 +32,7 @@ const processTools = async (req: Request, res: Response, tools: TOOL[]) => {
 
 const router = Router();
 
-router.get('/', async (req, res) => {
+router.use(async (req, res) => {
   const validationResult = toolsSchema.safeParse(req.query.tools);
 
   let requestedTools: TOOL[] = allTools;

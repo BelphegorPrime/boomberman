@@ -59,7 +59,9 @@ app.use('/tool/tarpit', tarpit, Router());
 app.use('/tool/pot', honeypotRoutes);
 app.use('/tool/captcha', captchaRouter);
 app.use('/metrics', strictLimiter, metricsRoutes);
-app.use('/', toolRouter);
+
+// Fallback for all other routes
+app.use(toolRouter);
 
 startHourlyFakeResponseTask();
 
