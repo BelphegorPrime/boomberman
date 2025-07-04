@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import { getRandomFakeResponse } from '../ai/fakeResponseManager.js';
 import { corruptJsonString } from './corruptJsonString.js';
-import { log } from './logger.js';
 
 const publicFolderPath = path.resolve(process.cwd(), 'public');
 
@@ -81,14 +80,14 @@ export function generateFaultyResponse(res: Response) {
 
   switch (choice) {
     case 'teapot': {
-      log(`[TEAPOT] served`);
+      console.log(`[TEAPOT] served`);
       gzipAndSend(res, "I'm a teapot. 🍵", 418);
       break;
     }
 
     case 'gibberish': {
       const fakeJson = getRandomFakeResponse();
-      log(`[GIBBERISH] served`);
+      console.log(`[GIBBERISH] served`);
       gzipAndSend(res, JSON.stringify(fakeJson || {}), 200, 'application/json');
       break;
     }
@@ -99,7 +98,7 @@ export function generateFaultyResponse(res: Response) {
         ? corruptJsonString(JSON.stringify(fakeJson))
         : '{"message": "Oops", "incomplete": true,, }';
 
-      log(`[MALFORMED_JSON] served`);
+      console.log(`[MALFORMED_JSON] served`);
       gzipAndSend(res, corrupted, 200, 'application/json');
       break;
     }
@@ -108,7 +107,7 @@ export function generateFaultyResponse(res: Response) {
       const lorem = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ';
       const hugePayload = lorem.repeat(200_000); // ~10MB
 
-      log(`[LARGE_PAYLOAD] served`);
+      console.log(`[LARGE_PAYLOAD] served`);
       gzipAndSend(res, hugePayload, 200);
       break;
     }
@@ -117,7 +116,7 @@ export function generateFaultyResponse(res: Response) {
       const gzPath = findLargestGzFile(publicFolderPath);
       if (gzPath && fs.existsSync(gzPath)) {
         const stat = fs.statSync(gzPath);
-        log(
+        console.log(
           `[BOOM] Serving file: ${gzPath} (${(stat.size / 1024).toFixed(2)} KB)`,
         );
         res
@@ -136,7 +135,9 @@ export function generateFaultyResponse(res: Response) {
         const payload = 'A'.repeat(100_000_000); // 100 MB of repeating character
         const buffer = Buffer.from(payload, 'utf-8');
 
-        log('[BOOM] No .gz file found — using fallback compressed payload');
+        console.log(
+          '[BOOM] No .gz file found — using fallback compressed payload',
+        );
         gzipAndSend(
           res,
           buffer,

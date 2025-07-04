@@ -81,9 +81,8 @@ The server will automatically:
 Configure in `.env`:
 
 ```env
-TARPIT_FILE_PATH=/data/tarpitAccess.json
 BAN_FILE_PATH=/data/banned.json
-EVENT_LOG_PATH=/data/events.log
+LOG_FILE_PATH=/data/app.log
 AI_FAKE_RESPONSES_PATH=/data/fakeResponses.jsonl
 MAX_FAKE_RESPONSE_FILESIZE_BYTES=50000
 ```

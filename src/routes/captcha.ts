@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { logThreat } from '../utils/logger.js';
+import { logThreat } from '../utils/logger/logger.js';
 import { delay } from '../utils/delay.js';
 
 const router = Router();

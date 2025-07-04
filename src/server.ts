@@ -7,12 +7,13 @@ import honeypotRoutes from './routes/honeypots.js';
 import metricsRoutes from './routes/metrics.js';
 import captchaRouter from './routes/captcha.js';
 import toolRouter from './routes/tool.js';
-import { isBanned, logThreat } from './utils/logger.js';
+import { logThreat } from './utils/logger/logger.js';
 import { tarpit } from './middleware/tarpit.js';
 import { defaultLimiter, strictLimiter } from './middleware/rateLimiter.js';
 import { generateFaultyResponse } from './utils/generateFaultyResponse.js';
 import { startHourlyFakeResponseTask } from './ai/fakeResponseManager.js';
 import { isKnownBot } from './utils/isKnownBot.js';
+import { isBanned } from './utils/logger/banFile.js';
 
 const app = express();
 

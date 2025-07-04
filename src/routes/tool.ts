@@ -9,9 +9,9 @@ type TOOL = 'tarpit' | 'honeyPot' | 'captcha';
 const noop = () => { };
 
 const toolsMap: Record<TOOL, (req: Request) => unknown> = {
-  tarpit: () => { },
+  tarpit: noop,
   honeyPot: (req: Request) => handleHoneyPot(req, '/'),
-  captcha: () => { },
+  captcha: noop,
 };
 
 const allTools: TOOL[] = ['tarpit', 'honeyPot', 'captcha'];

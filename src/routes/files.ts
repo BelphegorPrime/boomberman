@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { logThreat } from '../utils/logger.js';
+import { logThreat } from '../utils/logger/logger.js';
 
 const router = Router();
 

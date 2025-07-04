@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { ensureDirExistence } from './ensureDirExistence.js';
+import { ensureDirExistence } from '../ensureDirExistence.js';
 
 const orig = {
   log: console.log,
@@ -16,20 +16,22 @@ const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 
 const getTimeStamp = (): string => new Date().toISOString();
 
-const format = (type: string, args: unknown[]): string =>
-  `[${getTimeStamp()}] [${type.toUpperCase()}] ${args.map(String).join(' ')}\n`;
+const log = (type: 'log' | 'warn' | 'error', args: unknown[]) => {
+  const message = `[${getTimeStamp()}] [${type.toUpperCase()}] ${args.map(String).join(' ')}\n`;
+  logStream.write(message);
+};
 
 console.log = (...args: unknown[]) => {
-  logStream.write(format('log', args));
+  log('log', args);
   orig.log(...args);
 };
 
 console.warn = (...args: unknown[]) => {
-  logStream.write(format('warn', args));
+  log('warn', args);
   orig.warn(...args);
 };
 
 console.error = (...args: unknown[]) => {
-  logStream.write(format('error', args));
+  log('error', args);
   orig.error(...args);
 };
