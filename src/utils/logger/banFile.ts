@@ -30,7 +30,7 @@ loadBanFile();
 function saveBanFile(fullSave?: boolean) {
   fs.writeFileSync(banFile, JSON.stringify(banData, null, 2));
   if (fullSave) {
-    fs.writeFileSync(banFile, JSON.stringify(allBanFile, null, 2));
+    fs.writeFileSync(allBanFile, JSON.stringify(allBanData, null, 2));
   }
 }
 
