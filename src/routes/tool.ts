@@ -2,7 +2,10 @@ import { Request, Response, Router } from 'express';
 import { z } from 'zod';
 import { handleHoneyPot } from './honeypots.js';
 import { tarpit } from '../middleware/tarpit.js';
-import { generateFaultyResponse } from '../utils/generateFaultyResponse.js';
+import {
+  Choice,
+  generateFaultyResponse,
+} from '../utils/generateFaultyResponse.js';
 
 type TOOL = 'tarpit' | 'honeyPot' | 'captcha';
 
@@ -19,6 +22,15 @@ const toolsSchema = z
   .string()
   .transform((val) => val.split(',').map((t) => t.trim()))
   .pipe(z.array(z.enum(['tarpit', 'honeyPot', 'captcha'])));
+
+const choiceSchema = z
+  .string()
+  .transform((val) => val.split(',').map((t) => t.trim()))
+  .pipe(
+    z.array(
+      z.enum(['teapot', 'gibberish', 'malformedJson', 'largePayload', 'boom']),
+    ),
+  );
 
 const processTools = async (req: Request, res: Response, tools: TOOL[]) => {
   for (const tool of tools) {
@@ -40,13 +52,19 @@ router.use(async (req, res) => {
     requestedTools = validationResult.data;
   }
 
+  const choicesValidationResult = choiceSchema.safeParse(req.query.choices);
+  let choices: Choice[] | undefined = undefined;
+  if (choicesValidationResult.success) {
+    choices = choicesValidationResult.data;
+  }
+
   if (requestedTools.includes('tarpit')) {
     tarpit(req, res, noop);
   }
 
   await processTools(req, res, requestedTools);
 
-  generateFaultyResponse(res);
+  generateFaultyResponse(res, choices);
 });
 
 export default router;

@@ -5,6 +5,13 @@ import path from 'path';
 import { getRandomFakeResponse } from '../ai/fakeResponseManager.js';
 import { corruptJsonString } from './corruptJsonString.js';
 
+export type Choice =
+  | 'teapot'
+  | 'gibberish'
+  | 'malformedJson'
+  | 'largePayload'
+  | 'boom';
+
 const publicFolderPath = path.resolve(process.cwd(), 'public');
 
 if (!fs.existsSync(publicFolderPath)) {
@@ -71,15 +78,17 @@ function gzipAndSend(
   });
 }
 
-export function generateFaultyResponse(res: Response) {
-  const variants = [
+export function generateFaultyResponse(
+  res: Response,
+  choices: Choice[] = [
     'teapot',
     'gibberish',
     'malformedJson',
     'largePayload',
     'boom',
-  ];
-  const choice = variants[Math.floor(Math.random() * variants.length)];
+  ],
+) {
+  const choice = choices[Math.floor(Math.random() * choices.length)];
 
   switch (choice) {
     case 'teapot': {
