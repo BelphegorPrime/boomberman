@@ -5,3 +5,5 @@ logs
 *.log
 data
 .vscode
+public/*.gzip
+public/*.gz

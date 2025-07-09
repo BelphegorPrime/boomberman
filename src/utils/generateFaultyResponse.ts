@@ -30,7 +30,10 @@ function findLargestGzFile(dir: string): string | null {
           largestFile = candidate;
         }
       }
-    } else if (entry.isFile() && entry.name.endsWith('.gz')) {
+    } else if (
+      entry.isFile() &&
+      (entry.name.endsWith('.gz') || entry.name.endsWith('.gzip'))
+    ) {
       const size = fs.statSync(fullPath).size;
       if (size > largestSize) {
         largestSize = size;
