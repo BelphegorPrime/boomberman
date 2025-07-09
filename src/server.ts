@@ -41,6 +41,12 @@ app.use((req, res, next) => {
     return res.status(403).send('Your IP has been banned.');
   }
 
+  const start = process.hrtime.bigint();
+  res.on('finish', () => {
+    const duration = Number(process.hrtime.bigint() - start) / 1_000_000;
+    console.log(`${ip} - ${duration.toFixed(2)} ms`);
+  });
+
   next();
 });
 
