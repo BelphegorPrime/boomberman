@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
+import cron from 'node-cron';
 import { ensureDirExistence } from '../ensureDirExistence.js';
+import { rotateFile, RotateFileOptions } from '../rotateFile.js';
 
 const orig = {
   log: console.log,
@@ -11,6 +13,15 @@ const orig = {
 const logFile =
   process.env.LOG_FILE_PATH || path.resolve(process.cwd(), 'data/app.log');
 ensureDirExistence(logFile);
+
+const rotateFileOptions: RotateFileOptions = {
+  dir: path.dirname(logFile),
+  filename: path.basename(logFile),
+  retentionDays: parseInt(process.env.LOG_RETENTION_DAYS || '7', 10),
+};
+
+rotateFile(rotateFileOptions);
+cron.schedule('0 0 * * *', () => rotateFile(rotateFileOptions));
 
 const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 

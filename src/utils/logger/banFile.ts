@@ -1,11 +1,22 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import cron from 'node-cron';
 import { ensureDirExistence } from '../ensureDirExistence.js';
+import { rotateFile, RotateFileOptions } from '../rotateFile.js';
 
 const banFile =
   process.env.BAN_FILE_PATH || path.resolve(process.cwd(), 'data/banned.json');
 ensureDirExistence(banFile);
 const allBanFile = path.join(path.dirname(banFile), 'all_banned.json');
+
+const rotateFileOptions: RotateFileOptions = {
+  dir: path.dirname(allBanFile),
+  filename: path.basename(allBanFile),
+  retentionDays: parseInt(process.env.LOG_RETENTION_DAYS || '7', 10),
+};
+
+rotateFile(rotateFileOptions);
+cron.schedule('0 0 * * *', () => rotateFile(rotateFileOptions));
 
 let banData: Record<string, { count: number; lastAccess: number }> = {};
 let allBanData: Record<string, { count: number; lastAccess: number }> = {};
