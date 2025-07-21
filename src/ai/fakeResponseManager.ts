@@ -14,6 +14,25 @@ const fakeResponeFile =
   path.resolve(process.cwd(), 'data/fakeResponses.jsonl');
 ensureDirExistence(fakeResponeFile);
 
+const prompts = [
+  'Generate a fake JSON error response intended to confuse automated scraping tools. Include inconsistencies like misaligned keys, invalid values, or weird nesting.',
+  'Generate a fake JSON error response that confuses scrapers by using inconsistent key names, wrong data types, and unexpected null or empty values. Example: numeric error codes as strings, error messages nested inside arrays, or missing keys.',
+  'Create a JSON error response with weird, unpredictable nesting: error details buried inside arrays and objects with inconsistent key naming and some values replaced by empty arrays or objects. Include boolean values where strings are expected.',
+  'Produce a fake JSON error response that contains duplicate keys, contradictory error codes, and mismatched value types (e.g. error code both as a number and a string). The structure should be hard for scrapers to parse.',
+  'Generate a confusing JSON error response where error codes randomly switch between strings and numbers, messages include unusual Unicode characters or escaped sequences, and some keys are purposely misspelled or misaligned.',
+  'Simulate a malformed JSON error response with misplaced brackets, missing commas, or extra commas, but still parseable by lenient JSON parsers. Include unusual nesting and inconsistent value types.',
+  'Generate a JSON error response where error details switch unpredictably between arrays and objects. Some error messages should be arrays of strings, while others are single strings or nested objects with irrelevant keys.',
+  'Create a fake JSON error response that uses misleading keys like "statusMessage" for error codes and "errorFlag" for error messages. Include some irrelevant metadata keys with random values.',
+  'Produce a JSON error response where keys and values are sometimes swapped (e.g., error codes appear as keys, and the key names appear as values). Nest these swaps inside objects and arrays.',
+  'Generate a JSON error response with truncated or partial key names (like "err", "msg", "cd") and partial or corrupted values (like "Faile", "Unkno", 0x00). Introduce inconsistencies in casing and spacing.',
+  'Create a JSON error response that contains nested "errors" arrays with unrelated or contradictory error objects inside, some having valid-looking codes, others with nonsense messages or null values.',
+  'Generate a JSON error response where key names randomly use different capitalizations and include whitespace or special characters, like "Error Code", "error_Code", or "ERROR-code". Some keys may even be duplicated with different casing.',
+  'Produce a JSON error response that includes escaped Unicode characters, backslashes, and newline characters inside error messages, making it confusing for parsers expecting clean strings.',
+  'Generate a JSON error response where some error indicators are booleans (true/false), others are null, and some are strings like "false" or "null" — all mixed unpredictably.',
+  'Create a JSON error response where error codes and messages are hidden inside unrelated or misleading keys like "metadata", "info", or "debug", buried deeply in the structure.',
+  'Generate a JSON error response that includes keys or values hinting at circular references or recursive errors (e.g., "causedBy": "errorCode123" repeated inside nested errors) without causing actual parsing failures.',
+];
+
 // In-memory cache to avoid constant disk reads
 const cache: { timestamp: string; content: Record<string, unknown> }[] = [];
 
@@ -70,14 +89,7 @@ async function generateNewFakeResponse() {
   }
 
   const adapter = getAIAdapter();
-  const prompts = [
-    'Generate a fake JSON error response intended to confuse automated scraping tools. Include inconsistencies like misaligned keys, invalid values, or weird nesting.',
-    'Generate a fake JSON error response that confuses scrapers by using inconsistent key names, wrong data types, and unexpected null or empty values. Example: numeric error codes as strings, error messages nested inside arrays, or missing keys.',
-    'Create a JSON error response with weird, unpredictable nesting: error details buried inside arrays and objects with inconsistent key naming and some values replaced by empty arrays or objects. Include boolean values where strings are expected.',
-    'Produce a fake JSON error response that contains duplicate keys, contradictory error codes, and mismatched value types (e.g. error code both as a number and a string). The structure should be hard for scrapers to parse.',
-    'Generate a confusing JSON error response where error codes randomly switch between strings and numbers, messages include unusual Unicode characters or escaped sequences, and some keys are purposely misspelled or misaligned.',
-    'Simulate a malformed JSON error response with misplaced brackets, missing commas, or extra commas, but still parseable by lenient JSON parsers. Include unusual nesting and inconsistent value types.',
-  ];
+
   const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
 
   try {
