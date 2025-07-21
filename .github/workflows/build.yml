@@ -70,13 +70,18 @@ jobs:
           provenance: true
           sbom: true
           tags: ${{ steps.vars.outputs.tags }}
-          outputs: type=registry
           annotations: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+          outputs: |
+            type=registry
+            type=local,dest=./docker-output
 
       - name: List SBOM and attestation files
-        run: ls -lh ./sbom.spdx.json ./attestations.json || echo "Missing files"
+        run: ls -lh ./docker-output/sbom.spdx.json ./docker-output/attestations.json || echo "Missing files"
+      
+      - name: List generated Docker artifacts
+        run: ls -lh ./docker-output || echo "No output directory"
 
       - name: Upload SBOM and Metadata
         if: always()
@@ -84,9 +89,9 @@ jobs:
         with:
           name: docker-metadata
           path: |
-            ./sbom.spdx.json
-            ./attestations.json
-          if-no-files-found: ignore
+            ./docker-output/sbom.spdx.json
+            ./docker-output/attestations.json
+          if-no-files-found: error
 
   release:
     name: Create GitHub Release (if version tag)
