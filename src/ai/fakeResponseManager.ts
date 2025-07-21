@@ -70,10 +70,18 @@ async function generateNewFakeResponse() {
   }
 
   const adapter = getAIAdapter();
-  const prompt = `Generate a fake JSON error response intended to confuse automated scraping tools. Include inconsistencies like misaligned keys, invalid values, or weird nesting.`;
+  const prompts = [
+    'Generate a fake JSON error response intended to confuse automated scraping tools. Include inconsistencies like misaligned keys, invalid values, or weird nesting.',
+    'Generate a fake JSON error response that confuses scrapers by using inconsistent key names, wrong data types, and unexpected null or empty values. Example: numeric error codes as strings, error messages nested inside arrays, or missing keys.',
+    'Create a JSON error response with weird, unpredictable nesting: error details buried inside arrays and objects with inconsistent key naming and some values replaced by empty arrays or objects. Include boolean values where strings are expected.',
+    'Produce a fake JSON error response that contains duplicate keys, contradictory error codes, and mismatched value types (e.g. error code both as a number and a string). The structure should be hard for scrapers to parse.',
+    'Generate a confusing JSON error response where error codes randomly switch between strings and numbers, messages include unusual Unicode characters or escaped sequences, and some keys are purposely misspelled or misaligned.',
+    'Simulate a malformed JSON error response with misplaced brackets, missing commas, or extra commas, but still parseable by lenient JSON parsers. Include unusual nesting and inconsistent value types.',
+  ];
+  const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
 
   try {
-    const content = await adapter.generateResponse(prompt);
+    const content = await adapter.generateResponse(randomPrompt);
     if (!content) {
       return;
     }
