@@ -4,6 +4,13 @@ import readline from 'readline';
 import { ensureDirExistence } from '../utils/ensureDirExistence.js';
 import { getAIAdapter } from './index.js';
 
+type CacheEntry = {
+  timestamp: string;
+  content: Record<string, unknown>;
+  category: string;
+  prompt: string;
+};
+
 const ENABLE_AI = process.env.ENABLE_AI_FAKE_RESPONSES === 'true';
 
 const MAX_FILESIZE_BYTES = Number(
@@ -20,51 +27,151 @@ const promptCategories = {
     prompts: [
       'Generate a fake JSON error response using mismatched key names, random casing, and swapped value types like numbers in strings or vice versa.',
       "Create a malformed error response with misplaced brackets or duplicated keys. Still ensure it's parseable by forgiving parsers.",
-      'Produce a confusing JSON error where messages are inside arrays, error codes are booleans, and some keys are misspelled or nonsense.',
-      "Construct a recursive-style JSON error response where each 'causedBy' refers to the same or higher-level error code.",
-      'Make an error response where some keys are in camelCase, some in snake_case, and others in ALL CAPS or with spaces.',
-      "Write a fake error payload with contradictory values, like 'success': true alongside 'errorCode': 500, buried under irrelevant keys.",
-      'Simulate a JSON warning message with logical inconsistencies like negative timeout values or future timestamps from 2099.',
-      'Create a fake JSON error where some values are corrupted text, keys are partly truncated, and whitespace is randomly injected in field names.',
+      "Construct a recursive-style JSON error where each 'causedBy' refers to itself in a circular loop.",
     ],
   },
   userData: {
     weight: 1,
     prompts: [
-      'Invent a JSON payload with plausible keys but unrelated values. Add odd nesting, partial key names, and inconsistent spelling or casing.',
-      "Produce a fake JSON that pretends to be valid user data but includes bizarre data types (e.g. 'isAdmin': 'probably'), odd nesting, and contradictory fields.",
-      "Construct a fake social media profile in JSON, where fields like 'followers' are negative numbers, bios are arrays, and account dates go backward.",
+      'Produce a fake JSON user profile with impossible fields like age: -42, name: {}, and bio: [true, false, null].',
+      "Invent user credentials where 'password' is base64, 'email' is a boolean, and roles include emojis.",
+      'Simulate a login payload where usernames are random timestamps and session tokens are math expressions.',
     ],
   },
-  apis: {
+  ecommerce: {
     weight: 1,
     prompts: [
-      'Generate a fake JSON API response that looks correct but contains subtle flaws: type mismatches, swapped key/value roles, and deeply misplaced data.',
-      'Create a JSON document that looks like an online store inventory but mixes prices, ingredients, and error messages inside nested arrays.',
-      "Write a JSON object pretending to represent a blog post, but the content is inside 'meta', tags are numbers, and comments are base64 blobs.",
-    ],
-  },
-  telemetry: {
-    weight: 1,
-    prompts: [
-      "Write a fake telemetry payload where metrics like CPU or memory are mixed with philosophical terms like 'consciousnessLevel' or 'karmaLoad'.",
-      "Generate a weather API response in JSON where temperature is a string with emojis, windSpeed is an object, and humidity is just 'yes'.",
-      'Produce a machine learning model output where confidence scores exceed 100%, predictions are emojis, and classes are nested in nonsense keys.',
+      'Generate a fake JSON cart with product names as emojis, prices nested in stringified arrays, and stock counts that are negative.',
+      'Create an order payload where shipping info is randomly nested inside product descriptions, and dates are from different centuries.',
+      'Simulate an inventory JSON where SKUs are floating-point numbers and categories are actually hex codes.',
     ],
   },
   media: {
     weight: 1,
     prompts: [
-      'Generate a JSON chat history where usernames are true/false, messages are missing or nested in arrays, and timestamps defy logic.',
-      "Create a JSON news article that’s replaced halfway through with unrelated keys like 'cartItems', 'errorStatus', or 'userAvatarBase64'.",
+      "Write a JSON structure that mimics a blog post, but has the title inside 'author', paragraphs in 'tags', and timestamps from the future.",
+      "Generate an article payload where 'headline' is a boolean, 'body' is an array of product IDs, and 'author' is missing.",
+      'Create a fake news response where each section is randomly replaced with weather or stock market fields.',
+    ],
+  },
+  chat: {
+    weight: 1,
+    prompts: [
+      'Generate a JSON conversation where messages contain timestamps as text, users as integers, and threads are randomly cut off mid-key.',
+      "Write a chat export with messages embedded in 'metadata', usernames in different languages, and nested responses inside arrays of booleans.",
+      "Simulate a group chat where users are duplicated, and messages are split between unrelated keys like 'status' or 'debug'.",
+    ],
+  },
+  telemetry: {
+    weight: 1,
+    prompts: [
+      "Create a JSON payload that looks like telemetry but includes fields like 'batteryFeeling': 'anxious', and temperature in emojis.",
+      'Simulate logs from a device where sensor names are reversed strings, values are in poems, and all timestamps are identical.',
+      "Write fake device data with fields named 'blorpFactor', 'signalGhost', and 'isReallyConnected' set to 'who knows?'.",
+    ],
+  },
+  apis: {
+    weight: 1,
+    prompts: [
+      'Create a JSON response that looks like a weather API but delivers user profiles instead — keys are weather terms, values are accounts.',
+      "Simulate a REST response where headers are nested inside the body and the body has a key named 'thisShouldntBeHere'.",
+      'Design an API payload where endpoints describe entirely different data domains like chat messages or inventory, all in one object.',
+    ],
+  },
+  mlModels: {
+    weight: 1,
+    prompts: [
+      'Generate a fake AI prediction JSON where confidence is 133.7%, labels are jokes, and results reference TV shows.',
+      "Simulate ML output with nested vectors of nonsense strings, 'classification': 'yesNoMaybe', and impossible probability math.",
+      "Create a model result where the 'embedding' is a Shakespearean quote and each field pretends to be technical but isn't.",
     ],
   },
   surreal: {
     weight: 1,
     prompts: [
-      'Simulate a JSON analytics dashboard response with charts defined by booleans, legends as arrays of nulls, and widgets named after moods.',
-      'Fabricate a JSON object that pretends to be a system configuration file, but has keys in Latin or Greek, values as emojis or base64, and randomized structure.',
-      'Generate a fake health-tracker JSON payload that mixes steps with sleep logs, water intake as strings, and mood as deeply nested arrays.',
+      "Construct a dreamlike JSON object with keys like 'existence', 'skyState', and values that change shape between requests.",
+      'Simulate a data payload where field names are philosophical concepts and values are emojis or reversed quotes.',
+      'Generate a surreal JSON structure where arrays loop in on themselves and strings seem self-aware.',
+    ],
+  },
+  misleadingMeta: {
+    weight: 1,
+    prompts: [
+      "Create a fake config file where the version is 'unreal', paths are haikus, and 'enabled' is represented as Schrödinger's cat.",
+      'Generate a JSON system config where every field contradicts another and some settings seem to enable time travel.',
+      "Simulate an app manifest with fields like 'compiledFromDream': true, 'uiFeel': 'sticky', and 'license': '???'.",
+    ],
+  },
+  forms: {
+    weight: 1,
+    prompts: [
+      'Create a fake JSON form submission where names are numbers, emails contain emojis, and consent is given via poem.',
+      'Simulate a survey response where answers are arrays of booleans, questions are missing, and the structure collapses mid-response.',
+      'Generate a contact form submission with duplicated fields, conflicting data types, and encoded fragments in base64.',
+    ],
+  },
+  finance: {
+    weight: 1,
+    prompts: [
+      'Simulate a bank statement where all transactions are in fictional currencies, amounts are emojis, and totals don’t add up.',
+      'Create a fake investment JSON where shares are strings, timestamps are hex, and stock tickers are Shakespearean.',
+      'Write a transaction history where each entry is formatted differently, and some amounts are deeply nested arrays.',
+    ],
+  },
+  location: {
+    weight: 1,
+    prompts: [
+      'Generate a GPS log where lat/lng are reversed, some coordinates are inside strings, and others are buried in metaphors.',
+      'Create a fake location payload with countries as object keys and cities as timestamps.',
+      'Simulate a map route JSON where waypoints have emotional states and travel time is measured in riddles.',
+    ],
+  },
+  auth: {
+    weight: 1,
+    prompts: [
+      'Create a fake JSON auth token that changes structure every time, with half of the fields base64 and half hex.',
+      'Simulate a login session payload where tokens are booleans, roles are numbers, and sessionID is repeated 3 times.',
+      'Generate an OAuth-like payload where fields are misspelled and some scopes are just animals.',
+    ],
+  },
+  music: {
+    weight: 1,
+    prompts: [
+      'Create a JSON music playlist where song titles are timestamps, durations are coordinates, and artists are boolean values.',
+      'Simulate an audio track JSON where the waveform is a poem and genres are replaced with weather conditions.',
+      'Generate a JSON album metadata structure where every field is either missing or overexplained.',
+    ],
+  },
+  gaming: {
+    weight: 1,
+    prompts: [
+      'Generate a player stats payload where levels go backward, XP is negative, and character names are system errors.',
+      "Create a fake game state save file in JSON with keys like 'lastEmotion', 'cheatCodeList', and 'totalBugsUnlocked'.",
+      'Simulate a leaderboard JSON where some scores are base64, names are swapped with avatars, and positions are out of order.',
+    ],
+  },
+  iot: {
+    weight: 1,
+    prompts: [
+      'Simulate a smart home payload where devices send back emotional states and uptime is recorded in poetry.',
+      "Create a JSON object representing a fridge's contents with items that change type mid-list and temperatures measured in concepts.",
+      "Generate a smart sensor log where all readings are strings like 'beep', 'zzz', or 'help'.",
+    ],
+  },
+  analytics: {
+    weight: 1,
+    prompts: [
+      'Generate a JSON analytics snapshot with null metrics, inverted funnels, and chart legends made of nonsense words.',
+      'Simulate a report payload where user engagement is measured in philosophical units and every field is named ambiguously.',
+      "Create a dashboard data object where widgets track emotions, time spent is a color, and bounce rate is '42'.",
+    ],
+  },
+  aiPersona: {
+    weight: 1,
+    prompts: [
+      'Create a fake AI persona definition where traits are random adjectives, goals are undefined, and ethics policies are reversed.',
+      'Simulate an AI identity in JSON where personality values are boolean and likes/dislikes are contradictory arrays.',
+      'Generate an AI character sheet where every stat is misaligned, intentions are nested deeply, and alignment is missing.',
     ],
   },
 };
@@ -93,7 +200,7 @@ const pickRandomPrompt = () => {
 };
 
 // In-memory cache to avoid constant disk reads
-const cache: { timestamp: string; content: Record<string, unknown> }[] = [];
+const cache: CacheEntry[] = [];
 
 function loadCacheFromDisk() {
   if (!fs.existsSync(fakeResponeFile)) {
@@ -130,7 +237,7 @@ function saveToDisk() {
   }
 }
 
-async function generateNewFakeResponse() {
+export async function generateNewFakeResponse() {
   if (!ENABLE_AI) {
     return;
   }
@@ -157,7 +264,7 @@ async function generateNewFakeResponse() {
       return;
     }
 
-    const entry = {
+    const entry: CacheEntry = {
       timestamp: new Date().toISOString(),
       content,
       category,

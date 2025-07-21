@@ -11,7 +11,10 @@ import { logThreat } from './utils/logger/logger.js';
 import { tarpit } from './middleware/tarpit.js';
 import { defaultLimiter, strictLimiter } from './middleware/rateLimiter.js';
 import { generateFaultyResponse } from './utils/generateFaultyResponse.js';
-import { startHourlyFakeResponseTask } from './ai/fakeResponseManager.js';
+import {
+  generateNewFakeResponse,
+  startHourlyFakeResponseTask,
+} from './ai/fakeResponseManager.js';
 import { isKnownBot } from './utils/isKnownBot.js';
 import { isBanned } from './utils/logger/banFile.js';
 
@@ -66,6 +69,21 @@ app.use('/tool/tarpit', tarpit, Router());
 app.use('/tool/pot', honeypotRoutes);
 app.use('/tool/captcha', captchaRouter);
 app.use('/metrics', strictLimiter, metricsRoutes);
+
+if (process.env.ENABLE_AI_FAKE_RESPONSES === 'true') {
+  app.get('/gen', strictLimiter, async (req, res) => {
+    const amount = parseInt(req.query.amount?.toString() || '1');
+
+    for (let i = 0; i < amount; i++) {
+      await generateNewFakeResponse();
+      console.log(
+        `Populated fake response file with ${i + 1}/${amount} responses.`,
+      );
+    }
+
+    res.json({ success: true });
+  });
+}
 
 // Fallback for all other routes
 app.use(toolRouter);
