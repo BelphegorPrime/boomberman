@@ -28,8 +28,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          install: true
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -75,16 +73,6 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
-      - name: Upload SBOM and Metadata
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-metadata
-          path: |
-            ./sbom.spdx.json
-            ./attestations.json
-          if-no-files-found: ignore
-
   release:
     name: Create GitHub Release (if version tag)
     needs: build
@@ -95,25 +83,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Generate changelog
+      - name: Generate changelog since last tag
         id: changelog
         run: |
-          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
-          git log -1 --pretty=format:"%s%n%n%b" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ || echo "")
+          echo "Last tag: $LAST_TAG"
 
-      - name: Download Docker metadata artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-metadata
-          path: ./artifacts
+          if [[ -z "$LAST_TAG" ]]; then
+            git log --oneline > changelog.txt
+          else
+            git log "$LAST_TAG"..HEAD --oneline > changelog.txt
+          fi
+
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          cat changelog.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.build.outputs.version }}
-          name: Release ${{ needs.build.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body: ${{ env.CHANGELOG }}
-          files: |
-            ./artifacts/sbom.spdx.json
-            ./artifacts/attestations.json
