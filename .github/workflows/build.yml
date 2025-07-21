@@ -75,6 +75,9 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
+      - name: List SBOM and attestation files
+        run: ls -lh ./sbom.spdx.json ./attestations.json || echo "Missing files"
+
       - name: Upload SBOM and Metadata
         if: always()
         uses: actions/upload-artifact@v4
