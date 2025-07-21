@@ -14,24 +14,83 @@ const fakeResponeFile =
   path.resolve(process.cwd(), 'data/fakeResponses.jsonl');
 ensureDirExistence(fakeResponeFile);
 
-const prompts = [
-  'Generate a fake JSON error response intended to confuse automated scraping tools. Include inconsistencies like misaligned keys, invalid values, or weird nesting.',
-  'Generate a fake JSON error response that confuses scrapers by using inconsistent key names, wrong data types, and unexpected null or empty values. Example: numeric error codes as strings, error messages nested inside arrays, or missing keys.',
-  'Create a JSON error response with weird, unpredictable nesting: error details buried inside arrays and objects with inconsistent key naming and some values replaced by empty arrays or objects. Include boolean values where strings are expected.',
-  'Produce a fake JSON error response that contains duplicate keys, contradictory error codes, and mismatched value types (e.g. error code both as a number and a string). The structure should be hard for scrapers to parse.',
-  'Generate a confusing JSON error response where error codes randomly switch between strings and numbers, messages include unusual Unicode characters or escaped sequences, and some keys are purposely misspelled or misaligned.',
-  'Simulate a malformed JSON error response with misplaced brackets, missing commas, or extra commas, but still parseable by lenient JSON parsers. Include unusual nesting and inconsistent value types.',
-  'Generate a JSON error response where error details switch unpredictably between arrays and objects. Some error messages should be arrays of strings, while others are single strings or nested objects with irrelevant keys.',
-  'Create a fake JSON error response that uses misleading keys like "statusMessage" for error codes and "errorFlag" for error messages. Include some irrelevant metadata keys with random values.',
-  'Produce a JSON error response where keys and values are sometimes swapped (e.g., error codes appear as keys, and the key names appear as values). Nest these swaps inside objects and arrays.',
-  'Generate a JSON error response with truncated or partial key names (like "err", "msg", "cd") and partial or corrupted values (like "Faile", "Unkno", 0x00). Introduce inconsistencies in casing and spacing.',
-  'Create a JSON error response that contains nested "errors" arrays with unrelated or contradictory error objects inside, some having valid-looking codes, others with nonsense messages or null values.',
-  'Generate a JSON error response where key names randomly use different capitalizations and include whitespace or special characters, like "Error Code", "error_Code", or "ERROR-code". Some keys may even be duplicated with different casing.',
-  'Produce a JSON error response that includes escaped Unicode characters, backslashes, and newline characters inside error messages, making it confusing for parsers expecting clean strings.',
-  'Generate a JSON error response where some error indicators are booleans (true/false), others are null, and some are strings like "false" or "null" — all mixed unpredictably.',
-  'Create a JSON error response where error codes and messages are hidden inside unrelated or misleading keys like "metadata", "info", or "debug", buried deeply in the structure.',
-  'Generate a JSON error response that includes keys or values hinting at circular references or recursive errors (e.g., "causedBy": "errorCode123" repeated inside nested errors) without causing actual parsing failures.',
-];
+const promptCategories = {
+  errors: {
+    weight: 1,
+    prompts: [
+      'Generate a fake JSON error response using mismatched key names, random casing, and swapped value types like numbers in strings or vice versa.',
+      "Create a malformed error response with misplaced brackets or duplicated keys. Still ensure it's parseable by forgiving parsers.",
+      'Produce a confusing JSON error where messages are inside arrays, error codes are booleans, and some keys are misspelled or nonsense.',
+      "Construct a recursive-style JSON error response where each 'causedBy' refers to the same or higher-level error code.",
+      'Make an error response where some keys are in camelCase, some in snake_case, and others in ALL CAPS or with spaces.',
+      "Write a fake error payload with contradictory values, like 'success': true alongside 'errorCode': 500, buried under irrelevant keys.",
+      'Simulate a JSON warning message with logical inconsistencies like negative timeout values or future timestamps from 2099.',
+      'Create a fake JSON error where some values are corrupted text, keys are partly truncated, and whitespace is randomly injected in field names.',
+    ],
+  },
+  userData: {
+    weight: 1,
+    prompts: [
+      'Invent a JSON payload with plausible keys but unrelated values. Add odd nesting, partial key names, and inconsistent spelling or casing.',
+      "Produce a fake JSON that pretends to be valid user data but includes bizarre data types (e.g. 'isAdmin': 'probably'), odd nesting, and contradictory fields.",
+      "Construct a fake social media profile in JSON, where fields like 'followers' are negative numbers, bios are arrays, and account dates go backward.",
+    ],
+  },
+  apis: {
+    weight: 1,
+    prompts: [
+      'Generate a fake JSON API response that looks correct but contains subtle flaws: type mismatches, swapped key/value roles, and deeply misplaced data.',
+      'Create a JSON document that looks like an online store inventory but mixes prices, ingredients, and error messages inside nested arrays.',
+      "Write a JSON object pretending to represent a blog post, but the content is inside 'meta', tags are numbers, and comments are base64 blobs.",
+    ],
+  },
+  telemetry: {
+    weight: 1,
+    prompts: [
+      "Write a fake telemetry payload where metrics like CPU or memory are mixed with philosophical terms like 'consciousnessLevel' or 'karmaLoad'.",
+      "Generate a weather API response in JSON where temperature is a string with emojis, windSpeed is an object, and humidity is just 'yes'.",
+      'Produce a machine learning model output where confidence scores exceed 100%, predictions are emojis, and classes are nested in nonsense keys.',
+    ],
+  },
+  media: {
+    weight: 1,
+    prompts: [
+      'Generate a JSON chat history where usernames are true/false, messages are missing or nested in arrays, and timestamps defy logic.',
+      "Create a JSON news article that’s replaced halfway through with unrelated keys like 'cartItems', 'errorStatus', or 'userAvatarBase64'.",
+    ],
+  },
+  surreal: {
+    weight: 1,
+    prompts: [
+      'Simulate a JSON analytics dashboard response with charts defined by booleans, legends as arrays of nulls, and widgets named after moods.',
+      'Fabricate a JSON object that pretends to be a system configuration file, but has keys in Latin or Greek, values as emojis or base64, and randomized structure.',
+      'Generate a fake health-tracker JSON payload that mixes steps with sleep logs, water intake as strings, and mood as deeply nested arrays.',
+    ],
+  },
+};
+
+const pickRandomPrompt = () => {
+  const expanded = [];
+
+  // Build a weighted list
+  for (const [category, data] of Object.entries(promptCategories)) {
+    for (let i = 0; i < data.weight; i++) {
+      expanded.push({ category, prompts: data.prompts });
+    }
+  }
+
+  // Pick random category
+  const randomCategory = expanded[Math.floor(Math.random() * expanded.length)];
+
+  // Pick random prompt
+  const index = Math.floor(Math.random() * randomCategory.prompts.length);
+  const prompt = randomCategory.prompts[index];
+
+  return {
+    prompt,
+    category: randomCategory.category,
+  };
+};
 
 // In-memory cache to avoid constant disk reads
 const cache: { timestamp: string; content: Record<string, unknown> }[] = [];
@@ -90,15 +149,20 @@ async function generateNewFakeResponse() {
 
   const adapter = getAIAdapter();
 
-  const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
-
   try {
-    const content = await adapter.generateResponse(randomPrompt);
+    const { prompt, category } = pickRandomPrompt();
+
+    const content = await adapter.generateResponse(prompt);
     if (!content) {
       return;
     }
 
-    const entry = { timestamp: new Date().toISOString(), content };
+    const entry = {
+      timestamp: new Date().toISOString(),
+      content,
+      category,
+      prompt,
+    };
     cache.push(entry);
     saveToDisk();
     console.log('New fake response generated and saved to disk.');
