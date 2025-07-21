@@ -1,4 +1,4 @@
-# Boomberman
+<p align="center"><img src=".github/assets/fullLogo.png" style="border-radius:8px;" alt="Banner" width="200"></p>
 
 A honeypot and simulated payload server for safe security testing and intrusion detection.
 
