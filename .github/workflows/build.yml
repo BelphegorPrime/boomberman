@@ -28,8 +28,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          install: true
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -70,28 +68,10 @@ jobs:
           provenance: true
           sbom: true
           tags: ${{ steps.vars.outputs.tags }}
+          outputs: type=registry
           annotations: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-          outputs: |
-            type=registry
-            type=local,dest=./docker-output
-
-      - name: List SBOM and attestation files
-        run: ls -lh ./docker-output/sbom.spdx.json ./docker-output/attestations.json || echo "Missing files"
-      
-      - name: List generated Docker artifacts
-        run: ls -lh ./docker-output || echo "No output directory"
-
-      - name: Upload SBOM and Metadata
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-metadata
-          path: |
-            ./docker-output/sbom.spdx.json
-            ./docker-output/attestations.json
-          if-no-files-found: error
 
   release:
     name: Create GitHub Release (if version tag)
@@ -103,6 +83,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Cosign
+        run: |
+          curl -sSL https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 \
+            -o /usr/local/bin/cosign
+          chmod +x /usr/local/bin/cosign
+
+      - name: Download Attestation
+        run: |
+          cosign verify-attestation ghcr.io/${{ needs.build.outputs.repo }}:${{ needs.build.outputs.version }} \
+            --keyless \
+            --output-file ./attestations.json
+
+      - name: Download SBOM
+        run: |
+          cosign download sbom ghcr.io/${{ needs.build.outputs.repo }}:${{ needs.build.outputs.version }} \
+            --output-file ./sbom.spdx.json
+
       - name: Generate changelog
         id: changelog
         run: |
@@ -110,11 +107,14 @@ jobs:
           git log -1 --pretty=format:"%s%n%n%b" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Download Docker metadata artifacts
-        uses: actions/download-artifact@v4
+      - name: Upload Docker metadata as artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: docker-metadata
-          path: ./artifacts
+          path: |
+            ./sbom.spdx.json
+            ./attestations.json
+          if-no-files-found: error
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -123,5 +123,5 @@ jobs:
           name: Release ${{ needs.build.outputs.version }}
           body: ${{ env.CHANGELOG }}
           files: |
-            ./artifacts/sbom.spdx.json
-            ./artifacts/attestations.json
+            ./sbom.spdx.json
+            ./attestations.json
