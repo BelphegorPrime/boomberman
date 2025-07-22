@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import cron from 'node-cron';
+import schedule from 'node-schedule';
 import { ensureDirExistence } from '../ensureDirExistence.js';
 import { rotateFile, RotateFileOptions } from '../rotateFile.js';
 
@@ -21,7 +21,7 @@ const rotateFileOptions: RotateFileOptions = {
 };
 
 rotateFile(rotateFileOptions);
-cron.schedule('0 0 * * *', () => rotateFile(rotateFileOptions));
+schedule.scheduleJob('0 0 * * *', () => rotateFile(rotateFileOptions));
 
 const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 

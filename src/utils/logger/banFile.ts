@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import cron from 'node-cron';
+import schedule from 'node-schedule';
 import { ensureDirExistence } from '../ensureDirExistence.js';
 import { rotateFile, RotateFileOptions } from '../rotateFile.js';
 
@@ -16,7 +16,7 @@ const rotateFileOptions: RotateFileOptions = {
 };
 
 rotateFile(rotateFileOptions);
-cron.schedule('0 0 * * *', () => rotateFile(rotateFileOptions));
+schedule.scheduleJob('0 0 * * *', () => rotateFile(rotateFileOptions));
 
 let banData: Record<string, { count: number; lastAccess: number }> = {};
 let allBanData: Record<string, { count: number; lastAccess: number }> = {};
