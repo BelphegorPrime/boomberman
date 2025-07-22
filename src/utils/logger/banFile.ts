@@ -16,7 +16,8 @@ const rotateFileOptions: RotateFileOptions = {
 };
 
 rotateFile(rotateFileOptions);
-cron.schedule('0 0 * * *', () => rotateFile(rotateFileOptions));
+const job = cron.schedule('0 0 * * *', () => rotateFile(rotateFileOptions));
+job.start();
 
 let banData: Record<string, { count: number; lastAccess: number }> = {};
 let allBanData: Record<string, { count: number; lastAccess: number }> = {};

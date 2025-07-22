@@ -21,7 +21,8 @@ const rotateFileOptions: RotateFileOptions = {
 };
 
 rotateFile(rotateFileOptions);
-cron.schedule('0 0 * * *', () => rotateFile(rotateFileOptions));
+const job = cron.schedule('0 0 * * *', () => rotateFile(rotateFileOptions));
+job.start();
 
 const logStream = fs.createWriteStream(logFile, { flags: 'a' });
 
