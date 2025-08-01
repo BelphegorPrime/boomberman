@@ -20,15 +20,17 @@ const rotateFileOptions: RotateFileOptions = {
   retentionDays: parseInt(process.env.LOG_RETENTION_DAYS || '7', 10),
 };
 
+let logStream = fs.createWriteStream(logFile, { flags: 'a' });
+
 rotateFile(rotateFileOptions);
-schedule.scheduleJob('0 0 * * *', () => rotateFile(rotateFileOptions));
-
-const logStream = fs.createWriteStream(logFile, { flags: 'a' });
-
-const getTimeStamp = (): string => new Date().toISOString();
+schedule.scheduleJob('0 0 * * *', () => {
+  rotateFile(rotateFileOptions);
+  logStream = fs.createWriteStream(logFile, { flags: 'a' });
+});
 
 const log = (type: 'log' | 'warn' | 'error', args: unknown[]) => {
-  const message = `[${getTimeStamp()}] [${type.toUpperCase()}] ${args.map(String).join(' ')}\n`;
+  const now = new Date().toISOString();
+  const message = `[${now}] [${type.toUpperCase()}] ${args.map(String).join(' ')}\n`;
   logStream.write(message);
 };
 
