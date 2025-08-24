@@ -1,17 +1,14 @@
 import request from 'supertest';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import app from '../src/server';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { dirname } from '../src/utils/filesystemConstants';
 
 const tarpitFile =
   process.env.TARPIT_FILE_PATH ||
-  path.resolve(__dirname, './data/tarpitAccess.json');
+  path.resolve(dirname, './data/tarpitAccess.json');
 const banFile =
-  process.env.BAN_FILE_PATH || path.resolve(__dirname, './data/banned.json');
+  process.env.BAN_FILE_PATH || path.resolve(dirname, './data/banned.json');
 
 describe('Tarpit Middleware', () => {
   beforeEach(() => {

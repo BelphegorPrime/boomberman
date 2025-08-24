@@ -3,10 +3,7 @@ import app from '../src/server';
 import { isBanned, banIP, clearBanData } from '../src/utils/logger/banFile';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { dirname } from '../src/utils/filesystemConstants';
 
 beforeEach(() => {
   // Clear in-memory ban data before each test
@@ -18,7 +15,7 @@ afterEach(() => {
   clearBanData();
 
   // Clean up ban files
-  const banFile = path.resolve(__dirname, './data/banned.json');
+  const banFile = path.resolve(dirname, './data/banned.json');
   if (fs.existsSync(banFile)) {
     fs.unlinkSync(banFile);
   }

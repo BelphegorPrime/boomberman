@@ -7,3 +7,6 @@ data
 .vscode
 public/*.gzip
 public/*.gz
+
+# MaxMind GeoIP databases (licensing restrictions)
+*.mmdb
