@@ -7,6 +7,9 @@ export * from './Configuration.js';
 export * from './SessionData.js';
 export * from './Analytics.js';
 
+// Analyzers
+export * from '../analyzers/index.js';
+
 // Import the interfaces for re-export to ensure they're available
 import type { DetectionResult, DetectionReason, DetectionMetadata } from './DetectionResult.js';
 import type { HTTPFingerprint } from './HTTPFingerprint.js';
