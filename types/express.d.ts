@@ -18,5 +18,8 @@ declare module 'express-serve-static-core' {
     detectionError?: string;
     suspiciousRequest?: boolean;
     suspicionScore?: number;
+    correlationId?: string;
+    id?: string;
+    sessionID?: string;
   }
 }

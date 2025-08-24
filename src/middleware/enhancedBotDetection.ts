@@ -5,11 +5,15 @@ import { GeoAnalyzer } from '../detection/analyzers/GeoAnalyzer.js';
 import { ThreatScoringEngine } from '../detection/ThreatScoringEngine.js';
 import { logThreat } from '../utils/logger/logger.js';
 import { generateFaultyResponse } from '../utils/generateFaultyResponse.js';
+import {
+    getDetectionLogger,
+    createPerformanceMetrics,
+    type CorrelationContext,
+    type PerformanceMetrics as DetectionPerformanceMetrics
+} from '../utils/logger/detectionLogger.js';
 import type {
     DetectionResult,
     DetectionConfig,
-    HTTPFingerprint,
-    BehaviorMetrics,
     GeoLocation,
 } from '../detection/types/index.js';
 import { DEFAULT_DETECTION_CONFIG } from '../detection/types/Configuration.js';
@@ -70,6 +74,15 @@ export class EnhancedBotDetectionMiddleware {
         }
 
         const startTime = process.hrtime.bigint();
+        const startCpuUsage = process.cpuUsage();
+        const logger = getDetectionLogger();
+
+        // Create correlation context for request tracing
+        const context = logger.createCorrelationContext(req);
+
+        // Log detection start
+        logger.logDetectionStart(context, req);
+
         const ip = req.realIp || req.socket.remoteAddress || 'unknown';
         const userAgent = req.headers['user-agent'] || '';
 
@@ -82,27 +95,44 @@ export class EnhancedBotDetectionMiddleware {
             // Perform analysis with timeout protection
             const result = await this.performAnalysisWithTimeout(req, ip);
 
+            // Calculate detailed performance metrics
+            const totalTime = Number(process.hrtime.bigint() - startTime) / 1_000_000;
+            const timingBreakdown = result.metadata.detectorVersions?.timingBreakdown as any;
+
+            const performanceMetrics = createPerformanceMetrics(
+                totalTime,
+                timingBreakdown?.fingerprint || 0,
+                timingBreakdown?.behavior || 0,
+                timingBreakdown?.geo || 0,
+                timingBreakdown?.scoring || 0,
+                startCpuUsage
+            );
+
             // Add detection metadata to request for downstream middleware
             req.detectionResult = result;
             req.detectionMetrics = this.calculatePerformanceMetrics(startTime, result.metadata.processingTime);
+            req.correlationId = context.correlationId;
 
-            // Log detection results
-            this.logDetectionResult(ip, userAgent, req.path, result);
+            // Log detection completion
+            logger.logDetectionComplete(context, result, performanceMetrics, req);
 
             // Handle suspicious requests based on score
             if (result.isSuspicious) {
-                return this.handleSuspiciousRequest(req, res, result, next);
+                return this.handleSuspiciousRequest(req, res, result, next, context);
             }
 
             // Continue to next middleware for legitimate requests
             next();
 
         } catch (error) {
-            // Log error but don't block legitimate traffic
-            console.error('Enhanced bot detection error:', error);
+            const detectionError = error instanceof Error ? error : new Error('Unknown detection error');
+
+            // Log error with correlation context
+            logger.logDetectionError(context, detectionError, req, 'enhancedBotDetection');
 
             // Add error metadata to request
-            req.detectionError = error instanceof Error ? error.message : 'Unknown detection error';
+            req.detectionError = detectionError.message;
+            req.correlationId = context.correlationId;
 
             // Create fallback detection result
             req.detectionResult = this.createFallbackResult(req, ip);
@@ -260,32 +290,45 @@ export class EnhancedBotDetectionMiddleware {
     /**
      * Handle suspicious requests based on threat score
      */
-    private handleSuspiciousRequest(req: Request, res: Response, result: DetectionResult, next: NextFunction): void {
-        const ip = req.realIp || 'unknown';
+    private handleSuspiciousRequest(
+        req: Request,
+        res: Response,
+        result: DetectionResult,
+        next: NextFunction,
+        context: CorrelationContext
+    ): void {
+        const logger = getDetectionLogger();
         const userAgent = req.headers['user-agent'] || '';
 
         // Set response headers with detection information
         res.setHeader('X-Detection-Score', result.suspicionScore.toString());
         res.setHeader('X-Detection-Confidence', result.confidence.toString());
         res.setHeader('X-Detection-Fingerprint', result.fingerprint);
+        res.setHeader('X-Correlation-ID', context.correlationId);
 
         if (result.suspicionScore >= this.config.thresholds.highRisk) {
             // High risk - generate faulty response
+            logger.logThreatAction(context, 'BLOCKED', result, req);
+
             logThreat('HIGH_RISK_BOT_DETECTED', req.path, userAgent, {
                 score: result.suspicionScore,
                 confidence: result.confidence,
                 reasons: result.reasons.map(r => r.description),
                 fingerprint: result.fingerprint,
+                correlationId: context.correlationId,
             });
 
             generateFaultyResponse(res);
         } else {
             // Medium risk - apply rate limiting by setting flag for downstream middleware
+            logger.logThreatAction(context, 'RATE_LIMITED', result, req);
+
             logThreat('SUSPICIOUS_BOT_DETECTED', req.path, userAgent, {
                 score: result.suspicionScore,
                 confidence: result.confidence,
                 reasons: result.reasons.map(r => r.description),
                 fingerprint: result.fingerprint,
+                correlationId: context.correlationId,
             });
 
             // Set flag for tarpit middleware to apply delays
@@ -299,10 +342,13 @@ export class EnhancedBotDetectionMiddleware {
     }
 
     /**
-     * Log detection results for monitoring and analysis
+     * Log detection results for monitoring and analysis (legacy method - now handled by DetectionLogger)
      */
     private logDetectionResult(ip: string, userAgent: string, path: string, result: DetectionResult): void {
-        if (result.isSuspicious) {
+        // This method is now primarily for backward compatibility
+        // Main logging is handled by DetectionLogger in the middleware method
+
+        if (result.isSuspicious && process.env.NODE_ENV === 'development') {
             console.log(`[Enhanced Detection] Suspicious request from ${ip}:`, {
                 path,
                 score: result.suspicionScore,
@@ -310,13 +356,6 @@ export class EnhancedBotDetectionMiddleware {
                 processingTime: result.metadata.processingTime,
                 reasons: result.reasons.length,
                 fingerprint: result.fingerprint,
-            });
-        } else if (process.env.NODE_ENV === 'development') {
-            // Only log legitimate requests in development
-            console.log(`[Enhanced Detection] Legitimate request from ${ip}:`, {
-                path,
-                score: result.suspicionScore,
-                processingTime: result.metadata.processingTime,
             });
         }
     }
