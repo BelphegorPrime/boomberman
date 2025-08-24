@@ -27,8 +27,8 @@
   - Write unit tests for geographic analysis
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 5. Build threat scoring engine
-  - Create ThreatScoringEngine class with weighted scoring algorithm
+- [x] 5. Build threat scoring engine
+  - Create ThreatScoringEnwgine class with weighted scoring algorithm
   - Implement score combination logic for multiple detection factors
   - Add confidence calculation based on available data
   - Write unit tests for scoring engine
