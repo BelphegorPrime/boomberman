@@ -32,6 +32,8 @@ async function sendWebhookAlert(payload: {
 
 export async function logThreat(
   type:
+    | 'HIGH_RISK_BOT_DETECTED'
+    | 'SUSPICIOUS_BOT_DETECTED'
     | 'DIRECTORY_TRAVERSAL_ATTEMPT'
     | 'BOT_TOOLKIT_DETECTED'
     | 'CAPTCHA'
@@ -39,8 +41,9 @@ export async function logThreat(
     | 'FILE_DOWNLOAD',
   target: string,
   ip: string,
+  data?: Record<string, unknown>
 ) {
-  console.log(`${type} from ${ip} -> ${target}`);
+  console.log(`${type} from ${ip} -> ${target}`, { data });
 
   switch (type) {
     case 'CAPTCHA': {

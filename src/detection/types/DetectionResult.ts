@@ -42,9 +42,11 @@ export interface DetectionMetadata {
     /** Time taken to process the detection in milliseconds */
     processingTime: number;
     /** Version information for each detector component */
-    detectorVersions: Record<string, string>;
+    detectorVersions: Record<string, unknown>;
     /** Geographic data if available */
     geoData?: GeoLocation;
     /** Behavioral analysis data if available */
     behaviorData?: BehaviorMetrics;
+
+    timeoutOccurred?: boolean
 }

@@ -8,12 +8,32 @@ export function tarpit(req: Request, res: Response, next: NextFunction) {
 
   const entry = banIP(ip);
 
+  // Check enhanced detection results first
+  const isEnhancedSuspicious = req.suspiciousRequest || false;
+  const suspicionScore = req.suspicionScore || 0;
+
+  // Fallback to legacy detection
   const isSuspiciousUA = isKnownBot(ua);
   const isHighFreq = entry.count > 10;
 
-  if (isSuspiciousUA || isHighFreq) {
-    const delay = Math.min(entry.count * 1000, 30_000);
-    console.log(`Tarpitting ${ip} with ${delay}ms delay(UA: ${ua})`);
+  // Determine if request should be tarpitted
+  const shouldTarpit = isEnhancedSuspicious || isSuspiciousUA || isHighFreq;
+
+  if (shouldTarpit) {
+    // Calculate delay based on enhanced detection score or legacy logic
+    let delay: number;
+
+    if (isEnhancedSuspicious && suspicionScore > 0) {
+      // Use enhanced detection score for more precise delays
+      // Score 30-50: 1-5 seconds, Score 50-70: 5-15 seconds
+      const scoreBasedDelay = Math.min((suspicionScore - 30) * 375, 15_000); // Max 15s for score-based
+      delay = Math.max(scoreBasedDelay, 1000); // Minimum 1s delay
+    } else {
+      // Legacy delay calculation
+      delay = Math.min(entry.count * 1000, 30_000);
+    }
+
+    console.log(`Tarpitting ${ip} with ${delay}ms delay (Enhanced: ${isEnhancedSuspicious}, Score: ${suspicionScore}, UA: ${ua})`);
 
     req.socket.setTimeout(0);
 

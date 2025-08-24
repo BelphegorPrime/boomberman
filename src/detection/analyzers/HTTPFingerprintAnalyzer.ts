@@ -2,10 +2,26 @@ import { Request } from 'express';
 import { HTTPFingerprint } from '../types/HTTPFingerprint.js';
 
 /**
+ * Configuration interface for HTTP fingerprinting
+ */
+interface FingerprintingConfig {
+    /** Headers that should be present in legitimate browser requests */
+    requiredHeaders: string[];
+    /** Patterns that indicate suspicious or automated requests */
+    suspiciousPatterns: RegExp[];
+    /** Signatures of known automation frameworks */
+    automationSignatures: RegExp[];
+}
+
+/**
  * Analyzes HTTP requests to generate fingerprints for bot detection
  */
 export class HTTPFingerprintAnalyzer {
-    private static readonly COMMON_BROWSER_HEADERS = [
+    private readonly requiredHeaders: string[];
+    private readonly suspiciousPatterns: RegExp[];
+    private readonly automationSignatures: RegExp[];
+
+    private static readonly DEFAULT_COMMON_BROWSER_HEADERS = [
         'accept',
         'accept-language',
         'accept-encoding',
@@ -19,7 +35,7 @@ export class HTTPFingerprintAnalyzer {
         'sec-fetch-site'
     ];
 
-    private static readonly AUTOMATION_SIGNATURES = [
+    private static readonly DEFAULT_AUTOMATION_SIGNATURES = [
         // Selenium patterns
         /selenium/i,
         /webdriver/i,
@@ -65,8 +81,24 @@ export class HTTPFingerprintAnalyzer {
         /selenium/i,
         /webdriver/i,
         /automation/i,
-        /headless/i
+        /headless/i,
+
+        /python-requests/i,
+        /curl/i,
+        /wget/i,
+        /bot/i,
+        /crawler/i,
+        /spider/i,
     ];
+
+    /**
+     * Constructor for HTTPFingerprintAnalyzer
+     */
+    constructor(config?: FingerprintingConfig) {
+        this.requiredHeaders = config?.requiredHeaders || HTTPFingerprintAnalyzer.DEFAULT_COMMON_BROWSER_HEADERS;
+        this.suspiciousPatterns = config?.suspiciousPatterns || HTTPFingerprintAnalyzer.SUSPICIOUS_HEADER_PATTERNS;
+        this.automationSignatures = config?.automationSignatures || HTTPFingerprintAnalyzer.DEFAULT_AUTOMATION_SIGNATURES;
+    }
 
     /**
      * Analyzes an HTTP request to generate a fingerprint
@@ -127,7 +159,7 @@ export class HTTPFingerprintAnalyzer {
     private findMissingHeaders(headers: Record<string, string>): string[] {
         const presentHeaders = new Set(Object.keys(headers));
 
-        return HTTPFingerprintAnalyzer.COMMON_BROWSER_HEADERS.filter(
+        return this.requiredHeaders.filter(
             header => !presentHeaders.has(header)
         );
     }
@@ -140,14 +172,14 @@ export class HTTPFingerprintAnalyzer {
 
         for (const [headerName, headerValue] of Object.entries(headers)) {
             // Check header name patterns
-            if (HTTPFingerprintAnalyzer.SUSPICIOUS_HEADER_PATTERNS.some(pattern =>
+            if (this.suspiciousPatterns.some(pattern =>
                 pattern.test(headerName))) {
                 suspiciousHeaders.push(headerName);
                 continue;
             }
 
             // Check header value patterns
-            if (HTTPFingerprintAnalyzer.SUSPICIOUS_HEADER_PATTERNS.some(pattern =>
+            if (this.suspiciousPatterns.some(pattern =>
                 pattern.test(headerValue))) {
                 suspiciousHeaders.push(headerName);
             }
@@ -210,7 +242,7 @@ export class HTTPFingerprintAnalyzer {
         for (const [headerName, headerValue] of Object.entries(headers)) {
             const combinedText = `${headerName} ${headerValue}`;
 
-            for (const pattern of HTTPFingerprintAnalyzer.AUTOMATION_SIGNATURES) {
+            for (const pattern of this.automationSignatures) {
                 if (pattern.test(combinedText)) {
                     const match = combinedText.match(pattern);
                     if (match) {

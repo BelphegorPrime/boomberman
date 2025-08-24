@@ -6,6 +6,18 @@ import { createWriteStream, existsSync, mkdirSync, statSync } from 'fs';
 import { pipeline } from 'stream/promises';
 
 /**
+ * Configuration interface for geographic analysis
+ */
+interface GeographicConfig {
+    /** List of country codes considered high risk */
+    highRiskCountries: string[];
+    /** Score penalty for VPN usage (0-100) */
+    vpnPenalty: number;
+    /** Score penalty for hosting provider IPs (0-100) */
+    hostingPenalty: number;
+}
+
+/**
  * Geographic analysis service for IP addresses
  * Provides location data, infrastructure detection, and risk scoring
  */
@@ -15,14 +27,19 @@ export class GeoAnalyzer {
     private initialized = false;
     private static databasesEnsured = false;
 
+    // Configuration
+    private readonly highRiskCountries: string[];
+    private readonly vpnPenalty: number;
+    private readonly hostingPenalty: number;
+
     // MaxMind database download URLs
     private readonly GEOLITE2_CITY_URL = 'https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb';
     private readonly GEOLITE2_ASN_URL = 'https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-ASN.mmdb';
 
-    // High-risk countries (example list - should be configurable)
-    private readonly HIGH_RISK_COUNTRIES = new Set([
+    // Default high-risk countries
+    private static readonly DEFAULT_HIGH_RISK_COUNTRIES = [
         'CN', 'RU', 'KP', 'IR', 'SY', 'AF', 'IQ', 'LY', 'SO', 'SD'
-    ]);
+    ];
 
     // Known hosting/cloud provider ASNs (partial list)
     private readonly HOSTING_ASNS = new Set([
@@ -51,6 +68,15 @@ export class GeoAnalyzer {
         /purevpn/i,
         /hotspot.*shield/i,
     ];
+
+    /**
+     * Constructor for BehaviorAnalyzer
+     */
+    constructor(config?: GeographicConfig) {
+        this.highRiskCountries = config?.highRiskCountries || GeoAnalyzer.DEFAULT_HIGH_RISK_COUNTRIES
+        this.vpnPenalty = config?.vpnPenalty || 25;
+        this.hostingPenalty = config?.hostingPenalty || 15;
+    }
 
     /**
      * Get database paths from environment variables or defaults
@@ -259,19 +285,19 @@ export class GeoAnalyzer {
         let riskScore = 0;
 
         // Base risk from country
-        if (this.HIGH_RISK_COUNTRIES.has(location.country)) {
+        if (this.highRiskCountries.includes(location.country)) {
             riskScore += 30;
         }
 
         // Infrastructure-based risk
         if (location.isVPN) {
-            riskScore += 25;
+            riskScore += this.vpnPenalty;
         }
         if (location.isProxy) {
             riskScore += 20;
         }
         if (location.isHosting) {
-            riskScore += 15;
+            riskScore += this.hostingPenalty;
         }
         if (location.isTor) {
             riskScore += 40;

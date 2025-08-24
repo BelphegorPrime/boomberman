@@ -2,13 +2,34 @@ import { Request } from 'express';
 import { BehaviorMetrics, SessionData, RequestLog } from '../types/index.js';
 
 /**
+ * Configuration interface for behavioral analysis
+ */
+interface BehavioralConfig {
+    /** Minimum interval between requests for human-like behavior (ms) */
+    minHumanInterval: number;
+    /** Maximum timing consistency score before flagging as robotic (0-1) */
+    maxConsistency: number;
+    /** Session timeout in milliseconds */
+    sessionTimeout: number;
+}
+
+/**
  * Analyzes behavioral patterns in HTTP requests to detect automated behavior
  */
 export class BehaviorAnalyzer {
     private ipSessions: Map<string, SessionData> = new Map();
-    private readonly sessionTimeout: number = 30 * 60 * 1000; // 30 minutes
-    private readonly minHumanInterval: number = 500; // 500ms minimum human interval
-    private readonly maxConsistency: number = 0.8; // Maximum timing consistency for humans
+    private readonly sessionTimeout: number;
+    private readonly minHumanInterval: number;
+    private readonly maxConsistency: number;
+
+    /**
+     * Constructor for BehaviorAnalyzer
+     */
+    constructor(config?: BehavioralConfig) {
+        this.sessionTimeout = config?.sessionTimeout || 30 * 60 * 1000; // 30 minutes
+        this.minHumanInterval = config?.minHumanInterval || 500; // 500ms minimum human interval
+        this.maxConsistency = config?.maxConsistency || 0.8; // Maximum timing consistency for humans
+    }
 
     /**
      * Analyzes behavioral patterns for a given IP and request
