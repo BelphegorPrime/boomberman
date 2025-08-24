@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import schedule from 'node-schedule';
 import { ensureDirExistence } from '../ensureDirExistence.js';
 import { rotateFile, RotateFileOptions } from '../rotateFile.js';
+import { isTest } from '../isTest.js';
+
+let banData: Record<string, { count: number; lastAccess: number }> = {};
+let allBanData: Record<string, { count: number; lastAccess: number }> = {};
 
 const banFile =
   process.env.BAN_FILE_PATH || path.resolve(process.cwd(), 'data/banned.json');
@@ -15,11 +19,23 @@ const rotateFileOptions: RotateFileOptions = {
   retentionDays: parseInt(process.env.LOG_RETENTION_DAYS || '7', 10),
 };
 
-rotateFile(rotateFileOptions);
-schedule.scheduleJob('0 0 * * *', () => rotateFile(rotateFileOptions));
+if (!isTest) {
+  rotateFile(rotateFileOptions);
+  schedule.scheduleJob('0 0 * * *', () => rotateFile(rotateFileOptions));
 
-let banData: Record<string, { count: number; lastAccess: number }> = {};
-let allBanData: Record<string, { count: number; lastAccess: number }> = {};
+  const CLEANUP_INTERVAL = 60_000;
+  const MAX_IDLE_TIME = 5 * 60_000;
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, data] of Object.entries(banData)) {
+      if (now - data.lastAccess > MAX_IDLE_TIME) {
+        delete banData[ip];
+      }
+    }
+    saveBanFile();
+  }, CLEANUP_INTERVAL);
+}
 
 function loadBanFile() {
   try {
@@ -45,22 +61,6 @@ function saveBanFile(fullSave?: boolean) {
   }
 }
 
-const CLEANUP_INTERVAL = 60_000;
-const MAX_IDLE_TIME = 5 * 60_000;
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, data] of Object.entries(banData)) {
-    if (now - data.lastAccess > MAX_IDLE_TIME) {
-      delete banData[ip];
-    }
-  }
-  saveBanFile();
-}, CLEANUP_INTERVAL);
-
-export function isBanned(ip: string): boolean {
-  return banData[ip] && banData[ip].count >= 3;
-}
-
 function createEntry(baseEntry?: { count: number; lastAccess: number }) {
   const now = Date.now();
   const entry = baseEntry || { count: 0, lastAccess: 0 };
@@ -75,6 +75,10 @@ function createEntry(baseEntry?: { count: number; lastAccess: number }) {
   return entry;
 }
 
+export function isBanned(ip: string): boolean {
+  return banData[ip] && banData[ip].count >= 3;
+}
+
 export function banIP(ip: string) {
   const entry = createEntry(banData[ip]);
   banData[ip] = entry;
@@ -83,4 +87,11 @@ export function banIP(ip: string) {
   saveBanFile(true);
   console.warn(`BANNED IP: ${ip}`);
   return entry;
+}
+
+export function clearBanData() {
+  if (isTest) {
+    banData = {};
+    allBanData = {};
+  }
 }

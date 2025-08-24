@@ -1,17 +1,22 @@
-import { createDefaultPreset } from 'ts-jest';
 import type { Config } from 'jest';
 
-const tsJestTransformCfg = createDefaultPreset().transform;
-
 const config: Config = {
+  preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
+  extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    ...tsJestTransformCfg,
+    '^.+\\.ts$': ['ts-jest', { useESM: true }],
   },
-  setupFilesAfterEnv: ['./jest.setup.ts'],
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   verbose: true,
-  collectCoverageFrom: ['./src'],
+  collectCoverageFrom: ['./src/**/*.ts'],
   coverageDirectory: './coverage',
+  testMatch: ['**/test/**/*.test.ts'],
+  forceExit: true,
+  detectOpenHandles: true,
 };
 
 export default config;

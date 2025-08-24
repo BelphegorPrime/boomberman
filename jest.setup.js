@@ -1,27 +1,25 @@
-import express, { Request } from 'express';
-import http from 'http';
+import express from 'express';
 import dotenv from 'dotenv';
 
 dotenv.config({ path: '.env.test' });
 
-// Export these so tests can import and inspect them
-export let webhookServer: http.Server | null = null;
-export let webhookPort: number | null = null;
-export let receivedPayload: ReturnType<Request['body']> | null = null;
+// Global variables for tests
+let webhookServer = null;
+let webhookPort = null;
 
 beforeAll((done) => {
   const webhookApp = express();
   webhookApp.use(express.json());
 
-  receivedPayload = null;
+  global.receivedPayload = null;
 
   webhookApp.post('/alert', (req, res) => {
-    receivedPayload = req.body;
+    global.receivedPayload = req.body;
     res.status(200).send('OK');
   });
 
   webhookServer = webhookApp.listen(0, () => {
-    const serverData = webhookServer!.address();
+    const serverData = webhookServer.address();
     webhookPort =
       serverData && typeof serverData !== 'string' ? serverData.port : 0;
     process.env.WEBHOOK_URL = `http://localhost:${webhookPort}/alert`;
@@ -35,6 +33,12 @@ afterAll((done) => {
       webhookServer = null;
       webhookPort = null;
       delete process.env.WEBHOOK_URL;
+
+      // Clear all timers and scheduled jobs
+      if (typeof global.gc === 'function') {
+        global.gc();
+      }
+
       done();
     });
   } else {

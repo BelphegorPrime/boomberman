@@ -295,7 +295,9 @@ async function startHourlyFakeResponseTask() {
 
   loadCacheFromDisk();
 
-  setInterval(generateNewFakeResponse, 60 * 60 * 1000);
+  if (process.env.NODE_ENV !== 'test') {
+    setInterval(generateNewFakeResponse, 60 * 60 * 1000);
+  }
 
   if (process.env.AI_PRE_POPULATE_CACHE === 'true') {
     for (let i = 0; i < 20; i++) {

@@ -5,7 +5,7 @@
     "main": "dist/server.js",
     "type": "module",
     "scripts": {
-        "test": "jest",
+        "test": "NODE_OPTIONS=\"--experimental-vm-modules\" jest --detectOpenHandles",
         "build": "tsc",
         "start": "ts-node src/start.ts",
         "dev": "ts-node-dev src/start.ts",
