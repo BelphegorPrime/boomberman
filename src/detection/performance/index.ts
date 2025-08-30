@@ -1,6 +1,5 @@
-export {
-    PerformanceMonitor,
-    PerformanceTimer,
+export { PerformanceMonitor, PerformanceTimer } from './PerformanceMonitor.js';
+export type {
     PerformanceMetric,
     BenchmarkResult,
     BenchmarkStats,

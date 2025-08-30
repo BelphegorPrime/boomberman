@@ -49,4 +49,8 @@ export interface DetectionMetadata {
     behaviorData?: BehaviorMetrics;
 
     timeoutOccurred?: boolean
+
+    fallbackReason?: string
+
+    errorOccurred?: boolean
 }

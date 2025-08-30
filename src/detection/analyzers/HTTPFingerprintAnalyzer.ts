@@ -7,7 +7,7 @@ import { detectionErrorHandler, DetectionErrorType } from '../ErrorHandler.js';
 /**
  * Configuration interface for HTTP fingerprinting
  */
-interface FingerprintingConfig {
+export interface FingerprintingConfig {
     /** Headers that should be present in legitimate browser requests */
     requiredHeaders: string[];
     /** Patterns that indicate suspicious or automated requests */

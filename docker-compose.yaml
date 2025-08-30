@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   boomberman:
     build: 
@@ -11,7 +9,7 @@ services:
     volumes:
       - ./data:/data:rw # persist logs, banned IPs, and AI responses
       - ./public:/app/public:ro # static files (read-only)
-      - ./src/data/geoip:/app/src/data/geoip:ro # GeoIP databases (read-only)
+      - ./src/data/geoip:/app/dist/data/geoip:ro # GeoIP databases (read-only)
     env_file:
       - .env
     environment:

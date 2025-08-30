@@ -184,7 +184,10 @@ export class OptimizedHTTPFingerprintAnalyzer {
             // Limit cache size
             if (this.signatureCache.size > 1000) {
                 const firstKey = this.signatureCache.keys().next().value;
-                this.signatureCache.delete(firstKey);
+                if (firstKey) {
+                    this.signatureCache.delete(firstKey);
+
+                }
             }
         }
 
@@ -266,7 +269,9 @@ export class OptimizedHTTPFingerprintAnalyzer {
             // Limit cache size
             if (this.headerScoreCache.size > 500) {
                 const firstKey = this.headerScoreCache.keys().next().value;
-                this.headerScoreCache.delete(firstKey);
+                if (firstKey) {
+                    this.headerScoreCache.delete(firstKey);
+                }
             }
         }
 

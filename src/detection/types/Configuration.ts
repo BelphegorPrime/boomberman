@@ -1,3 +1,5 @@
+import { FingerprintingConfig } from "../analyzers/HTTPFingerprintAnalyzer.js";
+
 /**
  * Scoring weights for different detection factors
  */
@@ -28,23 +30,7 @@ export interface DetectionConfig {
         highRisk: number;
     };
     /** HTTP fingerprinting configuration */
-    fingerprinting: {
-        /** Headers that should be present in legitimate browser requests */
-        requiredHeaders: string[];
-        /** Patterns that indicate suspicious or automated requests */
-        suspiciousPatterns: RegExp[];
-        /** Signatures of known automation frameworks */
-        automationSignatures: RegExp[];
-        /** TLS fingerprinting configuration */
-        tls?: {
-            /** Whether TLS fingerprinting is enabled */
-            enabled: boolean;
-            /** Timeout for TLS analysis in milliseconds */
-            analysisTimeout: number;
-            /** Whether to perform consistency checking with HTTP fingerprints */
-            enableConsistencyCheck: boolean;
-        };
-    };
+    fingerprinting: FingerprintingConfig;
     /** Behavioral analysis configuration */
     behavioral: {
         /** Minimum interval between requests for human-like behavior (ms) */
@@ -118,6 +104,7 @@ export const DEFAULT_DETECTION_CONFIG: DetectionConfig = {
             enabled: true,
             analysisTimeout: 100,
             enableConsistencyCheck: true,
+            botPatterns: [],
         },
     },
     behavioral: {

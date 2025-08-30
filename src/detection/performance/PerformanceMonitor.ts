@@ -60,7 +60,9 @@ export class PerformanceMonitor {
         // Cleanup old metrics if we have too many
         if (this.metrics.size > this.maxMetrics) {
             const oldestKey = this.metrics.keys().next().value;
-            this.metrics.delete(oldestKey);
+            if (oldestKey) {
+                this.metrics.delete(oldestKey);
+            }
         }
     }
 

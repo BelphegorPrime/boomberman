@@ -1,2 +1,4 @@
-export { LRUCache, CacheStats } from './LRUCache.js';
-export { CacheManager, CacheConfig, CacheManagerStats } from './CacheManager.js';
+export { LRUCache } from './LRUCache.js';
+export type { CacheStats } from './LRUCache.js';
+export { CacheManager } from './CacheManager.js';
+export type { CacheConfig, CacheManagerStats } from './CacheManager.js';
