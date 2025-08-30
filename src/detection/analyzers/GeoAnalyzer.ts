@@ -5,6 +5,7 @@ import { dirname } from '../../utils/filesystemConstants.js';
 import { createWriteStream, existsSync, mkdirSync, statSync } from 'fs';
 import { pipeline } from 'stream/promises';
 import { detectionErrorHandler, DetectionErrorType } from '../ErrorHandler.js';
+import { ensureDirExistence } from '../../utils/ensureDirExistence.js';
 
 /**
  * Configuration interface for geographic analysis
@@ -87,16 +88,12 @@ export class GeoAnalyzer {
         const envGeoPath = process.env.GEOLITE2_CITY_DB_PATH;
         const envAsnPath = process.env.GEOLITE2_ASN_DB_PATH;
 
-        if (envGeoPath && envAsnPath) {
-            return {
-                geoPath: envGeoPath,
-                asnPath: envAsnPath
-            };
-        }
-
         // Fall back to default paths
         const defaultGeoDbPath = join(dirname, '../data/geoip/GeoLite2-City.mmdb');
         const defaultAsnDbPath = join(dirname, '../data/geoip/GeoLite2-ASN.mmdb');
+
+        ensureDirExistence(envGeoPath || defaultGeoDbPath);
+        ensureDirExistence(envAsnPath || defaultAsnDbPath);
 
         return {
             geoPath: envGeoPath || defaultGeoDbPath,
@@ -117,15 +114,11 @@ export class GeoAnalyzer {
         const { geoPath, asnPath } = analyzer.getDatabasePaths();
 
         try {
-            // Ensure the directory exists
-            const dbDir = join(dirname, '../data/geoip');
-            if (!existsSync(dbDir)) {
-                mkdirSync(dbDir, { recursive: true });
-            }
-
             // Download databases if they don't exist or if forced
-            await analyzer.ensureDatabaseExists(geoPath, analyzer.GEOLITE2_CITY_URL, forceDownload);
-            await analyzer.ensureDatabaseExists(asnPath, analyzer.GEOLITE2_ASN_URL, forceDownload);
+            await Promise.all([
+                analyzer.ensureDatabaseExists(geoPath, analyzer.GEOLITE2_CITY_URL, forceDownload),
+                analyzer.ensureDatabaseExists(asnPath, analyzer.GEOLITE2_ASN_URL, forceDownload)
+            ]);
 
             GeoAnalyzer.databasesEnsured = true;
             console.log('GeoAnalyzer databases ensured successfully');
@@ -142,6 +135,8 @@ export class GeoAnalyzer {
      */
     async initialize(geoDbPath?: string, asnDbPath?: string): Promise<void> {
         try {
+            await GeoAnalyzer.ensureDatabases()
+
             // Get database paths (from env vars or defaults)
             const { geoPath: defaultGeoPath, asnPath: defaultAsnPath } = this.getDatabasePaths();
 
