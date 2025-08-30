@@ -36,8 +36,8 @@ describe('Tarpit Middleware', () => {
         callback(null, res);
       });
 
-    // Bot detection middleware should intercept and return faulty response or ban
-    expect([200, 403, 418]).toContain(res.status);
+    // Bot detection middleware should intercept and return faulty response, ban, or tarpit
+    expect([200, 403, 418, 429]).toContain(res.status);
   }, 5_000);
 
   test('normal request gets faulty response from fallback', async () => {
@@ -50,7 +50,7 @@ describe('Tarpit Middleware', () => {
         callback(null, res);
       });
 
-    // Should get faulty response from tool router fallback, ban, or error
-    expect([200, 403, 418, 500]).toContain(res.status);
+    // Should get faulty response from tool router fallback, ban, tarpit, or error
+    expect([200, 403, 418, 429, 500]).toContain(res.status);
   }, 5_000);
 });

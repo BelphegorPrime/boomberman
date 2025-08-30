@@ -22,15 +22,14 @@ jest.mock('../src/utils/isTest.js', () => ({
 }));
 
 // Mock fs module
+const mockCreateWriteStream = jest.fn();
 jest.mock('fs', () => ({
-    createWriteStream: jest.fn(),
+    createWriteStream: mockCreateWriteStream,
     writeFileSync: jest.fn(),
     readFileSync: jest.fn(),
     existsSync: jest.fn(() => true),
     mkdirSync: jest.fn(),
 }));
-
-const mockFs = fs as jest.Mocked<typeof fs>;
 
 // Mock process methods
 const mockMemoryUsage = jest.fn(() => ({
@@ -53,6 +52,7 @@ describe('DetectionLogger', () => {
     let logger: DetectionLogger;
     let mockWriteStream: any;
     let mockMetricsStream: any;
+    let mockAuditStream: any;
 
     beforeEach(() => {
         // Reset mocks
@@ -69,11 +69,19 @@ describe('DetectionLogger', () => {
             end: jest.fn(),
         };
 
-        (mockFs.createWriteStream as jest.Mock).mockImplementation((filePath: string) => {
+        mockAuditStream = {
+            write: jest.fn(),
+            end: jest.fn(),
+        };
+
+        mockCreateWriteStream.mockImplementation((filePath: string) => {
             if (filePath.includes('metrics')) {
-                return mockMetricsStream as any;
+                return mockMetricsStream;
             }
-            return mockWriteStream as any;
+            if (filePath.includes('audit')) {
+                return mockAuditStream;
+            }
+            return mockWriteStream;
         });
 
         // Create new logger instance
@@ -527,6 +535,182 @@ describe('DetectionLogger', () => {
             expect(logEntry.metadata.headers.cookie).toBe('[REDACTED]');
             expect(logEntry.metadata.headers['x-api-key']).toBe('[REDACTED]');
             expect(logEntry.metadata.headers['user-agent']).toBe('Mozilla/5.0');
+        });
+    });
+
+    describe('enhanced logging features', () => {
+        test('should log configuration changes', () => {
+            const correlationId = 'config-123';
+            const oldValue = { threshold: 30 };
+            const newValue = { threshold: 40 };
+
+            logger.logConfigurationChange(
+                correlationId,
+                'THRESHOLD_UPDATE',
+                oldValue,
+                newValue,
+                'admin',
+                'Adjusting sensitivity'
+            );
+
+            // Check that audit entry was written
+            expect(mockAuditStream.write).toHaveBeenCalledWith(
+                expect.stringContaining('"event":"CONFIGURATION_CHANGE"')
+            );
+            expect(mockAuditStream.write).toHaveBeenCalledWith(
+                expect.stringContaining('"changedBy":"admin"')
+            );
+
+            // Check configuration history
+            const history = logger.getConfigurationHistory();
+            expect(history).toHaveLength(1);
+            expect(history[0].changeType).toBe('THRESHOLD_UPDATE');
+            expect(history[0].changedBy).toBe('admin');
+        });
+
+        test('should report false positives', () => {
+            const correlationId = 'fp-123';
+            const ip = '192.168.1.1';
+            const userAgent = 'Mozilla/5.0';
+
+            logger.reportFalsePositive(
+                correlationId,
+                ip,
+                userAgent,
+                75,
+                ['Automation detected'],
+                'security-team',
+                'LEGITIMATE',
+                'This was a legitimate monitoring tool'
+            );
+
+            // Check that false positive was logged
+            expect(mockWriteStream.write).toHaveBeenCalledWith(
+                expect.stringContaining('"event":"FALSE_POSITIVE_REPORTED"')
+            );
+
+            // Check false positive reports
+            const reports = logger.getFalsePositiveReports();
+            expect(reports).toHaveLength(1);
+            expect(reports[0].actualClassification).toBe('LEGITIMATE');
+            expect(reports[0].reportedBy).toBe('security-team');
+
+            // Check that analytics were updated
+            const analytics = logger.getAnalytics();
+            expect(analytics.falsePositives).toBe(1);
+        });
+
+        test('should generate detailed reasoning', () => {
+            const context: CorrelationContext = {
+                correlationId: 'corr-123',
+                requestId: 'req-123',
+                ip: '192.168.1.1',
+                userAgent: 'Bot/1.0',
+                timestamp: Date.now(),
+            };
+
+            const result: DetectionResult = {
+                isSuspicious: true,
+                suspicionScore: 75,
+                confidence: 0.9,
+                reasons: [
+                    {
+                        category: 'fingerprint',
+                        severity: 'high',
+                        description: 'Missing browser headers',
+                        score: 40,
+                    },
+                    {
+                        category: 'behavioral',
+                        severity: 'medium',
+                        description: 'Fast request timing',
+                        score: 35,
+                    },
+                ],
+                fingerprint: 'bot-fingerprint',
+                metadata: {
+                    timestamp: Date.now(),
+                    processingTime: 30.0,
+                    detectorVersions: { test: '1.0.0' },
+                },
+            };
+
+            const metrics: PerformanceMetrics = {
+                totalProcessingTime: 30.0,
+                fingerprintingTime: 10.0,
+                behaviorAnalysisTime: 8.0,
+                geoAnalysisTime: 7.0,
+                scoringTime: 5.0,
+                memoryUsage: process.memoryUsage(),
+            };
+
+            const mockReq = {
+                path: '/test',
+                method: 'GET',
+                headers: {
+                    'content-length': '100',
+                    'referer': 'https://example.com',
+                    'accept-language': 'en-US',
+                    'accept-encoding': 'gzip',
+                },
+            };
+
+            logger.logDetectionComplete(context, result, metrics, mockReq);
+
+            const logCall = mockWriteStream.write.mock.calls[0][0];
+            const logEntry = JSON.parse(logCall);
+
+            // Check SIEM-compatible fields
+            expect(logEntry.metadata.severity).toBe('high');
+            expect(logEntry.metadata.category).toBe('security.detection');
+            expect(logEntry.metadata.source).toBe('enhanced-bot-detection');
+
+            // Check detailed reasoning
+            expect(logEntry.metadata.detailedReasoning).toBeDefined();
+            expect(logEntry.metadata.detailedReasoning.overallScore).toBe(75);
+            expect(logEntry.metadata.detailedReasoning.recommendedAction).toBe('RATE_LIMIT');
+            expect(logEntry.metadata.detailedReasoning.riskFactors).toContain('Missing browser headers');
+
+            // Check additional context fields
+            expect(logEntry.metadata.requestSize).toBe('100');
+            expect(logEntry.metadata.referer).toBe('https://example.com');
+            expect(logEntry.metadata.acceptLanguage).toBe('en-US');
+        });
+
+        test('should provide enhanced analytics', () => {
+            // Add some test data
+            const context: CorrelationContext = {
+                correlationId: 'corr-123',
+                requestId: 'req-123',
+                ip: '192.168.1.1',
+                userAgent: 'Mozilla/5.0',
+                timestamp: Date.now(),
+            };
+
+            logger.logConfigurationChange(
+                'config-123',
+                'THRESHOLD_UPDATE',
+                { threshold: 30 },
+                { threshold: 40 },
+                'admin'
+            );
+
+            logger.reportFalsePositive(
+                'fp-123',
+                '192.168.1.1',
+                'Mozilla/5.0',
+                75,
+                ['Test'],
+                'admin',
+                'LEGITIMATE',
+                'Test report'
+            );
+
+            const enhancedAnalytics = logger.getEnhancedAnalytics();
+
+            expect(enhancedAnalytics.falsePositiveRate).toBeGreaterThan(0);
+            expect(enhancedAnalytics.configurationChanges).toBe(1);
+            expect(enhancedAnalytics.lastConfigurationChange).toBeDefined();
         });
     });
 });

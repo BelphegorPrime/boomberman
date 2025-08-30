@@ -51,28 +51,121 @@ export interface PerformanceMetrics {
 }
 
 /**
+ * Configuration change audit entry
+ */
+export interface ConfigurationChangeEntry {
+    timestamp: number;
+    correlationId: string;
+    changeType: 'THRESHOLD_UPDATE' | 'WEIGHT_UPDATE' | 'WHITELIST_UPDATE' | 'FEATURE_TOGGLE' | 'FULL_CONFIG_UPDATE';
+    oldValue: any;
+    newValue: any;
+    changedBy: string;
+    reason?: string;
+    metadata?: Record<string, unknown>;
+}
+
+/**
+ * False positive report for analysis and tuning
+ */
+export interface FalsePositiveReport {
+    timestamp: number;
+    correlationId: string;
+    ip: string;
+    userAgent: string;
+    originalScore: number;
+    originalReasons: string[];
+    reportedBy: string;
+    actualClassification: 'LEGITIMATE' | 'SUSPICIOUS' | 'MALICIOUS';
+    feedback: string;
+    metadata?: Record<string, unknown>;
+}
+
+/**
+ * Enhanced detection reasoning with detailed breakdown
+ */
+export interface DetailedDetectionReasoning {
+    overallScore: number;
+    confidence: number;
+    scoreBreakdown: {
+        fingerprint: {
+            score: number;
+            weight: number;
+            factors: Array<{
+                factor: string;
+                value: any;
+                impact: number;
+                description: string;
+            }>;
+        };
+        behavioral: {
+            score: number;
+            weight: number;
+            factors: Array<{
+                factor: string;
+                value: any;
+                impact: number;
+                description: string;
+            }>;
+        };
+        geographic: {
+            score: number;
+            weight: number;
+            factors: Array<{
+                factor: string;
+                value: any;
+                impact: number;
+                description: string;
+            }>;
+        };
+        reputation: {
+            score: number;
+            weight: number;
+            factors: Array<{
+                factor: string;
+                value: any;
+                impact: number;
+                description: string;
+            }>;
+        };
+    };
+    riskFactors: string[];
+    mitigatingFactors: string[];
+    recommendedAction: 'ALLOW' | 'MONITOR' | 'RATE_LIMIT' | 'BLOCK' | 'BAN';
+}
+
+/**
  * Enhanced logger for bot detection system with structured logging and metrics
  */
 export class DetectionLogger {
     private readonly logFile: string;
     private readonly metricsFile: string;
+    private readonly auditLogFile: string;
     private logStream: fs.WriteStream;
     private metricsStream: fs.WriteStream;
+    private auditLogStream: fs.WriteStream;
     private analytics: DetectionAnalytics;
     private threatSummaries: Map<string, ThreatSummary>;
     private performanceBuffer: PerformanceMetrics[];
     private readonly maxBufferSize = 1000;
+    private configurationHistory: ConfigurationChangeEntry[] = [];
+    private falsePositiveReports: FalsePositiveReport[] = [];
 
     constructor() {
-        const dataDir = path.resolve(process.cwd(), 'data');
+        // Use test data directory when in test mode
+        const dataDir = isTest
+            ? path.resolve(process.cwd(), 'test/data')
+            : process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
         this.logFile = path.join(dataDir, 'detection.log');
         this.metricsFile = path.join(dataDir, 'detection-metrics.log');
+        this.auditLogFile = path.join(dataDir, 'detection-audit.log');
 
         ensureDirExistence(this.logFile);
         ensureDirExistence(this.metricsFile);
+        ensureDirExistence(this.auditLogFile);
 
         this.logStream = fs.createWriteStream(this.logFile, { flags: 'a' });
         this.metricsStream = fs.createWriteStream(this.metricsFile, { flags: 'a' });
+        this.auditLogStream = fs.createWriteStream(this.auditLogFile, { flags: 'a' });
 
         this.analytics = this.initializeAnalytics();
         this.threatSummaries = new Map();
@@ -123,7 +216,7 @@ export class DetectionLogger {
     }
 
     /**
-     * Log detection analysis completion
+     * Log detection analysis completion with detailed reasoning
      */
     logDetectionComplete(
         context: CorrelationContext,
@@ -131,6 +224,9 @@ export class DetectionLogger {
         metrics: PerformanceMetrics,
         req: any
     ): void {
+        // Generate detailed reasoning for comprehensive analysis
+        const detailedReasoning = this.generateDetailedReasoning(result);
+
         const entry: DetectionLogEntry = {
             correlationId: context.correlationId,
             requestId: context.requestId,
@@ -147,6 +243,17 @@ export class DetectionLogger {
                 processingTime: result.metadata.processingTime,
                 confidence: result.confidence,
                 reasonCount: result.reasons.length,
+                detailedReasoning,
+                // SIEM-compatible fields
+                severity: this.calculateSeverityLevel(result.suspicionScore),
+                category: 'security.detection',
+                source: 'enhanced-bot-detection',
+                version: '1.0.0',
+                // Additional context for analysis
+                requestSize: req.headers?.['content-length'] || 0,
+                referer: req.headers?.['referer'] || 'none',
+                acceptLanguage: req.headers?.['accept-language'] || 'none',
+                acceptEncoding: req.headers?.['accept-encoding'] || 'none',
             },
         };
 
@@ -260,6 +367,254 @@ export class DetectionLogger {
     }
 
     /**
+     * Log configuration changes for audit purposes
+     */
+    logConfigurationChange(
+        correlationId: string,
+        changeType: ConfigurationChangeEntry['changeType'],
+        oldValue: any,
+        newValue: any,
+        changedBy: string,
+        reason?: string,
+        metadata?: Record<string, unknown>
+    ): void {
+        const entry: ConfigurationChangeEntry = {
+            timestamp: Date.now(),
+            correlationId,
+            changeType,
+            oldValue,
+            newValue,
+            changedBy,
+            reason,
+            metadata,
+        };
+
+        this.configurationHistory.push(entry);
+
+        // Write to audit log
+        const auditEntry = {
+            timestamp: entry.timestamp,
+            level: 'info',
+            event: 'CONFIGURATION_CHANGE',
+            correlationId,
+            changeType,
+            changedBy,
+            reason,
+            changes: {
+                old: oldValue,
+                new: newValue,
+            },
+            metadata,
+        };
+
+        this.writeAuditEntry(auditEntry);
+    }
+
+    /**
+     * Report false positive for analysis and system tuning
+     */
+    reportFalsePositive(
+        correlationId: string,
+        ip: string,
+        userAgent: string,
+        originalScore: number,
+        originalReasons: string[],
+        reportedBy: string,
+        actualClassification: FalsePositiveReport['actualClassification'],
+        feedback: string,
+        metadata?: Record<string, unknown>
+    ): void {
+        const report: FalsePositiveReport = {
+            timestamp: Date.now(),
+            correlationId,
+            ip,
+            userAgent,
+            originalScore,
+            originalReasons,
+            reportedBy,
+            actualClassification,
+            feedback,
+            metadata,
+        };
+
+        this.falsePositiveReports.push(report);
+
+        // Update analytics
+        if (actualClassification === 'LEGITIMATE') {
+            this.analytics.falsePositives++;
+        }
+
+        // Log the false positive report
+        const entry: DetectionLogEntry = {
+            correlationId,
+            requestId: correlationId,
+            timestamp: Date.now(),
+            level: 'warn',
+            event: 'FALSE_POSITIVE_REPORTED',
+            ip,
+            userAgent,
+            path: 'unknown',
+            method: 'unknown',
+            metadata: {
+                originalScore,
+                originalReasons,
+                reportedBy,
+                actualClassification,
+                feedback,
+                ...metadata,
+            },
+        };
+
+        this.writeLogEntry(entry);
+    }
+
+    /**
+     * Generate detailed reasoning breakdown for comprehensive analysis
+     */
+    private generateDetailedReasoning(result: DetectionResult): DetailedDetectionReasoning {
+        // Extract score breakdown from reasons
+        const fingerprintFactors = result.reasons
+            .filter(r => r.category === 'fingerprint')
+            .map(r => ({
+                factor: r.description,
+                value: r.score,
+                impact: r.score,
+                description: `${r.severity} severity: ${r.description}`,
+            }));
+
+        const behavioralFactors = result.reasons
+            .filter(r => r.category === 'behavioral')
+            .map(r => ({
+                factor: r.description,
+                value: r.score,
+                impact: r.score,
+                description: `${r.severity} severity: ${r.description}`,
+            }));
+
+        const geographicFactors = result.reasons
+            .filter(r => r.category === 'geographic')
+            .map(r => ({
+                factor: r.description,
+                value: r.score,
+                impact: r.score,
+                description: `${r.severity} severity: ${r.description}`,
+            }));
+
+        const reputationFactors = result.reasons
+            .filter(r => r.category === 'reputation')
+            .map(r => ({
+                factor: r.description,
+                value: r.score,
+                impact: r.score,
+                description: `${r.severity} severity: ${r.description}`,
+            }));
+
+        // Calculate weighted scores (simplified - would use actual weights in production)
+        const fingerprintScore = fingerprintFactors.reduce((sum, f) => sum + f.impact, 0);
+        const behavioralScore = behavioralFactors.reduce((sum, f) => sum + f.impact, 0);
+        const geographicScore = geographicFactors.reduce((sum, f) => sum + f.impact, 0);
+        const reputationScore = reputationFactors.reduce((sum, f) => sum + f.impact, 0);
+
+        // Identify risk and mitigating factors
+        const riskFactors = result.reasons
+            .filter(r => r.severity === 'high')
+            .map(r => r.description);
+
+        const mitigatingFactors = result.reasons
+            .filter(r => r.severity === 'low')
+            .map(r => `Low risk: ${r.description}`);
+
+        // Determine recommended action
+        let recommendedAction: DetailedDetectionReasoning['recommendedAction'] = 'ALLOW';
+        if (result.suspicionScore >= 80) {
+            recommendedAction = 'BAN';
+        } else if (result.suspicionScore >= 70) {
+            recommendedAction = 'BLOCK';
+        } else if (result.suspicionScore >= 40) {
+            recommendedAction = 'RATE_LIMIT';
+        } else if (result.suspicionScore >= 20) {
+            recommendedAction = 'MONITOR';
+        }
+
+        return {
+            overallScore: result.suspicionScore,
+            confidence: result.confidence,
+            scoreBreakdown: {
+                fingerprint: {
+                    score: fingerprintScore,
+                    weight: 0.3, // Default weight
+                    factors: fingerprintFactors,
+                },
+                behavioral: {
+                    score: behavioralScore,
+                    weight: 0.3, // Default weight
+                    factors: behavioralFactors,
+                },
+                geographic: {
+                    score: geographicScore,
+                    weight: 0.2, // Default weight
+                    factors: geographicFactors,
+                },
+                reputation: {
+                    score: reputationScore,
+                    weight: 0.2, // Default weight
+                    factors: reputationFactors,
+                },
+            },
+            riskFactors,
+            mitigatingFactors,
+            recommendedAction,
+        };
+    }
+
+    /**
+     * Calculate SIEM-compatible severity level
+     */
+    private calculateSeverityLevel(suspicionScore: number): 'low' | 'medium' | 'high' | 'critical' {
+        if (suspicionScore >= 80) return 'critical';
+        if (suspicionScore >= 60) return 'high';
+        if (suspicionScore >= 30) return 'medium';
+        return 'low';
+    }
+
+    /**
+     * Get configuration change history
+     */
+    getConfigurationHistory(): ConfigurationChangeEntry[] {
+        return [...this.configurationHistory];
+    }
+
+    /**
+     * Get false positive reports
+     */
+    getFalsePositiveReports(): FalsePositiveReport[] {
+        return [...this.falsePositiveReports];
+    }
+
+    /**
+     * Get enhanced analytics with false positive analysis
+     */
+    getEnhancedAnalytics(): DetectionAnalytics & {
+        falsePositiveRate: number;
+        configurationChanges: number;
+        lastConfigurationChange?: number;
+    } {
+        const baseAnalytics = this.getAnalytics();
+        const falsePositiveRate = baseAnalytics.totalRequests > 0
+            ? baseAnalytics.falsePositives / baseAnalytics.totalRequests
+            : 0;
+
+        return {
+            ...baseAnalytics,
+            falsePositiveRate,
+            configurationChanges: this.configurationHistory.length,
+            lastConfigurationChange: this.configurationHistory.length > 0
+                ? this.configurationHistory[this.configurationHistory.length - 1].timestamp
+                : undefined,
+        };
+    }
+
+    /**
      * Close logger and flush streams
      */
     close(): void {
@@ -269,6 +624,7 @@ export class DetectionLogger {
 
         this.logStream.end();
         this.metricsStream.end();
+        this.auditLogStream.end();
     }
 
     /**
@@ -292,6 +648,19 @@ export class DetectionLogger {
     private writeMetricsEntry(entry: any): void {
         const metricsLine = JSON.stringify(entry) + '\n';
         this.metricsStream.write(metricsLine);
+    }
+
+    /**
+     * Write audit entry
+     */
+    private writeAuditEntry(entry: any): void {
+        const auditLine = JSON.stringify(entry) + '\n';
+        this.auditLogStream.write(auditLine);
+
+        // Also write to console in development for audit visibility
+        if (process.env.NODE_ENV !== 'production' && !isTest) {
+            console.log(`[AUDIT] ${entry.event} - ${entry.correlationId} - ${entry.changedBy || 'system'}`);
+        }
     }
 
     /**
@@ -417,6 +786,40 @@ export class DetectionLogger {
         });
 
         return sanitized;
+    }
+
+    /**
+     * Log whitelist bypass for monitoring and analysis
+     */
+    logWhitelistBypass(
+        context: CorrelationContext,
+        whitelistResult: any, // WhitelistResult type from WhitelistManager
+        req: any
+    ): void {
+        const entry: DetectionLogEntry = {
+            correlationId: context.correlationId,
+            requestId: context.requestId,
+            timestamp: Date.now(),
+            level: 'info',
+            event: 'WHITELIST_BYPASS',
+            ip: context.ip,
+            userAgent: context.userAgent,
+            path: req.path || req.url || 'unknown',
+            method: req.method || 'unknown',
+            metadata: {
+                bypassType: whitelistResult.bypassType,
+                reason: whitelistResult.reason,
+                matchedEntries: whitelistResult.matchedEntries.length,
+                matchedEntryIds: whitelistResult.matchedEntries.map((entry: any) => entry.id),
+                // SIEM-compatible fields
+                severity: 'info',
+                category: 'security.whitelist',
+                source: 'enhanced-bot-detection',
+                version: '1.0.0',
+            },
+        };
+
+        this.writeLogEntry(entry);
     }
 }
 

@@ -3,6 +3,7 @@ import { HTTPFingerprintAnalyzer } from '../detection/analyzers/HTTPFingerprintA
 import { BehaviorAnalyzer } from '../detection/analyzers/BehaviorAnalyzer.js';
 import { GeoAnalyzer } from '../detection/analyzers/GeoAnalyzer.js';
 import { ThreatScoringEngine } from '../detection/ThreatScoringEngine.js';
+import { getWhitelistManager, type WhitelistResult } from '../detection/WhitelistManager.js';
 import { logThreat } from '../utils/logger/logger.js';
 import { generateFaultyResponse } from '../utils/generateFaultyResponse.js';
 import {
@@ -11,12 +12,14 @@ import {
     type CorrelationContext,
     type PerformanceMetrics as DetectionPerformanceMetrics
 } from '../utils/logger/detectionLogger.js';
+import { getMetricsCollector } from '../utils/logger/metricsCollector.js';
 import type {
     DetectionResult,
     DetectionConfig,
     GeoLocation,
 } from '../detection/types/index.js';
 import { DEFAULT_DETECTION_CONFIG } from '../detection/types/Configuration.js';
+import { detectionErrorHandler, DetectionErrorType } from '../detection/ErrorHandler.js';
 
 /**
  * Performance monitoring interface for tracking middleware execution
@@ -38,6 +41,7 @@ export class EnhancedBotDetectionMiddleware {
     private readonly behaviorAnalyzer: BehaviorAnalyzer;
     private readonly geoAnalyzer: GeoAnalyzer;
     private readonly scoringEngine: ThreatScoringEngine;
+    private readonly whitelistManager = getWhitelistManager();
     private readonly config: DetectionConfig;
     private readonly maxProcessingTime: number = 50; // 50ms timeout
 
@@ -49,8 +53,30 @@ export class EnhancedBotDetectionMiddleware {
         this.geoAnalyzer = new GeoAnalyzer(config.geographic);
         this.scoringEngine = new ThreatScoringEngine(config.scoringWeights);
 
+        // Initialize whitelist manager with configuration
+        this.initializeWhitelistManager();
+
         // Initialize GeoAnalyzer asynchronously
         this.initializeGeoAnalyzer();
+    }
+
+    /**
+     * Initialize whitelist manager with configuration
+     */
+    private initializeWhitelistManager(): void {
+        try {
+            // Update whitelist manager configuration
+            this.whitelistManager.updateConfig({
+                ips: this.config.whitelist.ips,
+                userAgents: this.config.whitelist.userAgents,
+                asns: this.config.whitelist.asns,
+                enableMonitoringToolsBypass: true,
+                maxEntries: 10000,
+                defaultExpirationTime: 24 * 60 * 60 * 1000, // 24 hours
+            });
+        } catch (error) {
+            console.warn('Failed to initialize WhitelistManager:', error);
+        }
     }
 
     /**
@@ -87,13 +113,31 @@ export class EnhancedBotDetectionMiddleware {
         const userAgent = req.headers['user-agent'] || '';
 
         try {
-            // Check whitelist first for performance
-            if (this.isWhitelisted(ip, userAgent)) {
+            // Perform initial analysis to get geo data and fingerprint for comprehensive whitelist check
+            const initialAnalysis = await this.performInitialAnalysis(req, ip);
+
+            // Check comprehensive whitelist with all available data
+            const whitelistResult = this.checkWhitelist(
+                req,
+                ip,
+                userAgent,
+                initialAnalysis.geoData,
+                initialAnalysis.fingerprint
+            );
+
+            if (whitelistResult.isWhitelisted) {
+                // Log whitelist bypass
+                logger.logWhitelistBypass(context, whitelistResult, req);
+
+                // Add whitelist metadata to request
+                req.whitelistResult = whitelistResult;
+                req.correlationId = context.correlationId;
+
                 return next();
             }
 
-            // Perform analysis with timeout protection
-            const result = await this.performAnalysisWithTimeout(req, ip);
+            // Perform full analysis with timeout protection
+            const result = await this.performAnalysisWithTimeout(req, ip, initialAnalysis);
 
             // Calculate detailed performance metrics
             const totalTime = Number(process.hrtime.bigint() - startTime) / 1_000_000;
@@ -116,6 +160,11 @@ export class EnhancedBotDetectionMiddleware {
             // Log detection completion
             logger.logDetectionComplete(context, result, performanceMetrics, req);
 
+            // Record metrics for performance tracking
+            const metricsCollector = getMetricsCollector();
+            const blocked = result.isSuspicious && result.suspicionScore >= this.config.thresholds.highRisk;
+            metricsCollector.recordDetection(ip, result, performanceMetrics, blocked);
+
             // Handle suspicious requests based on score
             if (result.isSuspicious) {
                 return this.handleSuspiciousRequest(req, res, result, next, context);
@@ -130,12 +179,16 @@ export class EnhancedBotDetectionMiddleware {
             // Log error with correlation context
             logger.logDetectionError(context, detectionError, req, 'enhancedBotDetection');
 
+            // Record error in metrics
+            const metricsCollector = getMetricsCollector();
+            metricsCollector.recordError(detectionError, 'enhancedBotDetection');
+
             // Add error metadata to request
             req.detectionError = detectionError.message;
             req.correlationId = context.correlationId;
 
-            // Create fallback detection result
-            req.detectionResult = this.createFallbackResult(req, ip);
+            // Create fallback detection result using error handler
+            req.detectionResult = detectionErrorHandler.handleScoringEngineError(req, ip, detectionError);
             req.detectionMetrics = this.calculatePerformanceMetrics(startTime, 0);
 
             // Continue with request processing
@@ -144,18 +197,51 @@ export class EnhancedBotDetectionMiddleware {
     };
 
     /**
+     * Perform initial analysis for whitelist checking (lightweight)
+     */
+    private async performInitialAnalysis(req: Request, ip: string): Promise<{
+        geoData?: GeoLocation;
+        fingerprint?: string;
+    }> {
+        try {
+            // Quick HTTP fingerprinting for whitelist check
+            const httpFingerprint = this.httpAnalyzer.analyze(req);
+
+            // Quick geo lookup for ASN checking
+            let geoData: GeoLocation | undefined;
+            try {
+                geoData = await this.geoAnalyzer.analyze(ip);
+            } catch (error) {
+                // Ignore geo errors for whitelist check
+                geoData = undefined;
+            }
+
+            return {
+                geoData,
+                fingerprint: httpFingerprint.headerSignature,
+            };
+        } catch (error) {
+            // Return empty data if initial analysis fails
+            return {};
+        }
+    }
+
+    /**
      * Perform comprehensive analysis with timeout protection
      */
-    private async performAnalysisWithTimeout(req: Request, ip: string): Promise<DetectionResult> {
-        const analysisPromise = this.performAnalysis(req, ip);
+    private async performAnalysisWithTimeout(req: Request, ip: string, initialData?: {
+        geoData?: GeoLocation;
+        fingerprint?: string;
+    }): Promise<DetectionResult> {
+        const analysisPromise = this.performAnalysis(req, ip, initialData);
         const timeoutPromise = this.createTimeoutPromise();
 
         try {
             return await Promise.race([analysisPromise, timeoutPromise]);
         } catch (error) {
             if (error instanceof Error && error.message === 'Analysis timeout') {
-                // Return fallback result on timeout
-                return this.createFallbackResult(req, ip);
+                // Return fallback result on timeout using error handler
+                return detectionErrorHandler.handleTimeoutError(req, ip);
             }
             throw error;
         }
@@ -164,7 +250,10 @@ export class EnhancedBotDetectionMiddleware {
     /**
      * Perform comprehensive bot detection analysis
      */
-    private async performAnalysis(req: Request, ip: string): Promise<DetectionResult> {
+    private async performAnalysis(req: Request, ip: string, initialData?: {
+        geoData?: GeoLocation;
+        fingerprint?: string;
+    }): Promise<DetectionResult> {
         const analysisStartTime = process.hrtime.bigint();
 
         // Run HTTP fingerprinting analysis
@@ -177,25 +266,29 @@ export class EnhancedBotDetectionMiddleware {
         const behavior = this.behaviorAnalyzer.analyze(ip, req);
         const behaviorTime = Number(process.hrtime.bigint() - behaviorStartTime) / 1_000_000;
 
-        // Run geographic analysis
+        // Run geographic analysis (reuse from initial data if available)
         const geoStartTime = process.hrtime.bigint();
         let geo: GeoLocation;
-        try {
-            geo = await this.geoAnalyzer.analyze(ip);
-        } catch (error) {
-            // Fallback to default geo location if analysis fails
-            geo = {
-                country: 'unknown',
-                region: 'unknown',
-                city: 'unknown',
-                isVPN: false,
-                isProxy: false,
-                isHosting: false,
-                isTor: false,
-                riskScore: 0,
-                asn: 0,
-                organization: 'unknown',
-            };
+        if (initialData?.geoData) {
+            geo = initialData.geoData;
+        } else {
+            try {
+                geo = await this.geoAnalyzer.analyze(ip);
+            } catch (error) {
+                // Fallback to default geo location if analysis fails
+                geo = {
+                    country: 'unknown',
+                    region: 'unknown',
+                    city: 'unknown',
+                    isVPN: false,
+                    isProxy: false,
+                    isHosting: false,
+                    isTor: false,
+                    riskScore: 0,
+                    asn: 0,
+                    organization: 'unknown',
+                };
+            }
         }
         const geoTime = Number(process.hrtime.bigint() - geoStartTime) / 1_000_000;
 
@@ -272,19 +365,10 @@ export class EnhancedBotDetectionMiddleware {
     }
 
     /**
-     * Check if request should be whitelisted
+     * Check if request should be whitelisted using the comprehensive whitelist manager
      */
-    private isWhitelisted(ip: string, userAgent: string): boolean {
-        // Normalize IP address (remove IPv6 prefix if present)
-        const normalizedIp = ip.replace(/^::ffff:/, '');
-
-        // Check IP whitelist
-        if (this.config.whitelist.ips.includes(normalizedIp) || this.config.whitelist.ips.includes(ip)) {
-            return true;
-        }
-
-        // Check user-agent whitelist
-        return this.config.whitelist.userAgents.some(pattern => pattern.test(userAgent));
+    private checkWhitelist(req: Request, ip: string, userAgent: string, geoData?: GeoLocation, fingerprint?: string): WhitelistResult {
+        return this.whitelistManager.checkWhitelist(req, ip, userAgent, geoData, fingerprint);
     }
 
     /**
@@ -377,15 +461,133 @@ export class EnhancedBotDetectionMiddleware {
     }
 
     /**
-     * Update configuration at runtime
+     * Update configuration at runtime with audit logging
      */
-    updateConfig(newConfig: Partial<DetectionConfig>): void {
+    updateConfig(newConfig: Partial<DetectionConfig>, changedBy: string = 'system', reason?: string): void {
+        const logger = getDetectionLogger();
+        const correlationId = `config-${Date.now()}`;
+        const oldConfig = { ...this.config };
+
+        // Apply configuration changes
         Object.assign(this.config, newConfig);
 
         // Update scoring weights if provided
         if (newConfig.scoringWeights) {
             this.scoringEngine.updateWeights(newConfig.scoringWeights);
         }
+
+        // Log configuration change for audit purposes
+        logger.logConfigurationChange(
+            correlationId,
+            'FULL_CONFIG_UPDATE',
+            oldConfig,
+            this.config,
+            changedBy,
+            reason,
+            {
+                changedFields: Object.keys(newConfig),
+                timestamp: Date.now(),
+            }
+        );
+    }
+
+    /**
+     * Update specific configuration threshold with audit logging
+     */
+    updateThreshold(
+        thresholdType: 'suspicious' | 'highRisk',
+        newValue: number,
+        changedBy: string = 'system',
+        reason?: string
+    ): void {
+        const logger = getDetectionLogger();
+        const correlationId = `threshold-${Date.now()}`;
+        const oldValue = this.config.thresholds[thresholdType];
+
+        this.config.thresholds[thresholdType] = newValue;
+
+        logger.logConfigurationChange(
+            correlationId,
+            'THRESHOLD_UPDATE',
+            { [thresholdType]: oldValue },
+            { [thresholdType]: newValue },
+            changedBy,
+            reason,
+            {
+                thresholdType,
+                oldValue,
+                newValue,
+            }
+        );
+    }
+
+    /**
+     * Add IP to whitelist with audit logging
+     */
+    addToWhitelist(
+        ip: string,
+        changedBy: string = 'system',
+        reason?: string,
+        expirationTime?: number
+    ): string {
+        return this.whitelistManager.addEntry({
+            type: 'ip',
+            value: ip,
+            description: reason || 'Added via middleware',
+            addedBy: changedBy,
+            expirationTime,
+        });
+    }
+
+    /**
+     * Add user-agent pattern to whitelist
+     */
+    addUserAgentToWhitelist(
+        pattern: string | RegExp,
+        changedBy: string = 'system',
+        reason?: string,
+        expirationTime?: number
+    ): string {
+        const regexPattern = typeof pattern === 'string' ? new RegExp(pattern, 'i') : pattern;
+        return this.whitelistManager.addEntry({
+            type: 'userAgent',
+            value: regexPattern,
+            description: reason || 'Added via middleware',
+            addedBy: changedBy,
+            expirationTime,
+        });
+    }
+
+    /**
+     * Add ASN to whitelist
+     */
+    addASNToWhitelist(
+        asn: number,
+        changedBy: string = 'system',
+        reason?: string,
+        expirationTime?: number
+    ): string {
+        return this.whitelistManager.addEntry({
+            type: 'asn',
+            value: asn,
+            description: reason || 'Added via middleware',
+            addedBy: changedBy,
+            expirationTime,
+        });
+    }
+
+    /**
+     * Remove entry from whitelist
+     */
+    removeFromWhitelist(entryId: string, removedBy: string = 'system'): boolean {
+        return this.whitelistManager.removeEntry(entryId, removedBy);
+    }
+
+    /**
+     * Get whitelist statistics
+     */
+    getWhitelistStatistics() {
+        return this.whitelistManager.getStatistics();
     }
 
     /**

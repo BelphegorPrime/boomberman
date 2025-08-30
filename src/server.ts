@@ -15,8 +15,9 @@ import {
   generateNewFakeResponse,
   startHourlyFakeResponseTask,
 } from './ai/fakeResponseManager.js';
-import { isKnownBot } from './utils/isKnownBot.js';
+
 import { isBanned } from './utils/logger/banFile.js';
+import { enhancedBotDetectionMiddleware } from './middleware/enhancedBotDetection.js';
 
 const app = express();
 
@@ -53,19 +54,13 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use((req, res, next) => {
-  const ua = req.headers['user-agent'] || '';
-
-  if (isKnownBot(ua)) {
-    logThreat('BOT_TOOLKIT_DETECTED', req.path, ua);
-    generateFaultyResponse(res);
-  } else {
-    next();
-  }
-});
+// Enhanced bot detection middleware - comprehensive threat analysis
+app.use(enhancedBotDetectionMiddleware);
 
 app.use('/public', fileRoutes);
-app.use('/tool/tarpit', tarpit, Router());
+app.use('/tool/tarpit', tarpit, (req, res) => {
+  res.status(200).json({ message: 'Tarpit test endpoint' });
+});
 app.use('/tool/pot', honeypotRoutes);
 app.use('/tool/captcha', captchaRouter);
 app.use('/metrics', strictLimiter, metricsRoutes);

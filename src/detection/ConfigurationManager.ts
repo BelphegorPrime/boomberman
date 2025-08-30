@@ -158,6 +158,9 @@ export class ConfigurationManager extends EventEmitter {
         if (process.env.BOT_DETECTION_WHITELIST_ASNS !== undefined) {
             config.whitelist.asns = process.env.BOT_DETECTION_WHITELIST_ASNS.split(',').map(asn => parseInt(asn.trim(), 10));
         }
+        if (process.env.BOT_DETECTION_WHITELIST_MONITORING_TOOLS !== undefined) {
+            // This would be handled by the WhitelistManager configuration
+        }
 
         // Required headers
         if (process.env.BOT_DETECTION_REQUIRED_HEADERS !== undefined) {

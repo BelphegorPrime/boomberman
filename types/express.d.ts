@@ -1,5 +1,6 @@
 import 'express';
 import type { DetectionResult } from '../src/detection/types/index.js';
+import type { WhitelistResult } from '../src/detection/WhitelistManager.js';
 
 interface PerformanceMetrics {
   totalTime: number;
@@ -19,6 +20,7 @@ declare module 'express-serve-static-core' {
     suspiciousRequest?: boolean;
     suspicionScore?: number;
     correlationId?: string;
+    whitelistResult?: WhitelistResult;
     id?: string;
     sessionID?: string;
   }

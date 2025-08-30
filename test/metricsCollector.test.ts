@@ -35,6 +35,7 @@ describe('MetricsCollector', () => {
 
     afterEach(() => {
         collector.removeAllListeners();
+        collector.stopPeriodicTasks();
     });
 
     describe('recordDetection', () => {
@@ -395,6 +396,10 @@ describe('MetricsCollector', () => {
                 memoryUsage: process.memoryUsage(),
             };
 
+            // Add error listener to prevent unhandled error
+            const errorHandler = jest.fn();
+            collector.on('error', errorHandler);
+
             // Add some data
             collector.recordDetection('192.168.1.1', result, metrics, false);
             collector.recordError(new Error('test'));
@@ -416,6 +421,9 @@ describe('MetricsCollector', () => {
 
             const realTime = collector.getRealTimeMetrics();
             expect(realTime.cacheHitRate).toBe(0);
+
+            // Remove error listener
+            collector.off('error', errorHandler);
         });
     });
 
@@ -506,6 +514,124 @@ describe('MetricsCollector', () => {
 
             const analytics = collector.getDetectionAnalytics();
             expect(analytics.averageProcessingTime).toBe(25.0); // (20 + 30) / 2
+        });
+    });
+
+    describe('enhanced performance statistics', () => {
+        test('should provide comprehensive performance statistics', () => {
+            // Add test data with varying response times
+            const responseTimes = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+            const result: DetectionResult = {
+                isSuspicious: false,
+                suspicionScore: 15,
+                confidence: 0.8,
+                reasons: [],
+                fingerprint: 'test',
+                metadata: {
+                    timestamp: Date.now(),
+                    processingTime: 25.0,
+                    detectorVersions: { test: '1.0.0' },
+                },
+            };
+
+            responseTimes.forEach((time, index) => {
+                const metrics: PerformanceMetrics = {
+                    totalProcessingTime: time,
+                    fingerprintingTime: time * 0.2,
+                    behaviorAnalysisTime: time * 0.3,
+                    geoAnalysisTime: time * 0.3,
+                    scoringTime: time * 0.2,
+                    memoryUsage: process.memoryUsage(),
+                };
+
+                collector.recordDetection(`192.168.1.${index}`, result, metrics, false);
+            });
+
+            // Add some cache events
+            collector.recordCacheEvent(true);
+            collector.recordCacheEvent(true);
+            collector.recordCacheEvent(false);
+
+            // Add error listener to prevent unhandled error
+            const errorHandler = jest.fn();
+            collector.on('error', errorHandler);
+
+            // Add some errors
+            collector.recordError(new Error('Test error 1'));
+            collector.recordError(new Error('Test error 2'));
+
+            const perfStats = collector.getPerformanceStatistics();
+
+            // Check response time percentiles
+            expect(perfStats.responseTimePercentiles.p50).toBe(50); // Median
+            expect(perfStats.responseTimePercentiles.p90).toBe(90); // 90th percentile
+            expect(perfStats.responseTimePercentiles.p95).toBe(100); // 95th percentile
+            expect(perfStats.responseTimePercentiles.p99).toBe(100); // 99th percentile
+
+            // Check throughput metrics
+            expect(perfStats.throughputMetrics.requestsPerSecond).toBeGreaterThan(0);
+            expect(perfStats.throughputMetrics.averageRequestsPerMinute).toBeGreaterThan(0);
+
+            // Check error metrics
+            expect(perfStats.errorMetrics.errorCount).toBe(2);
+            expect(perfStats.errorMetrics.errorRate).toBe(2 / 10); // 2 errors out of 10 requests
+
+            // Check resource usage
+            expect(perfStats.resourceUsage.averageMemoryUsage).toBeGreaterThan(0);
+            expect(perfStats.resourceUsage.peakMemoryUsage).toBeGreaterThan(0);
+
+            // Check cache metrics
+            expect(perfStats.cacheMetrics.hitRate).toBeCloseTo(2 / 3, 2);
+            expect(perfStats.cacheMetrics.totalHits).toBe(2);
+            expect(perfStats.cacheMetrics.totalMisses).toBe(1);
+
+            // Remove error listener
+            collector.off('error', errorHandler);
+        });
+
+        test('should handle empty data gracefully', () => {
+            const perfStats = collector.getPerformanceStatistics();
+
+            expect(perfStats.responseTimePercentiles.p50).toBe(0);
+            expect(perfStats.responseTimePercentiles.p90).toBe(0);
+            expect(perfStats.responseTimePercentiles.p95).toBe(0);
+            expect(perfStats.responseTimePercentiles.p99).toBe(0);
+
+            expect(perfStats.throughputMetrics.requestsPerSecond).toBe(0);
+            expect(perfStats.errorMetrics.errorRate).toBe(0);
+            expect(perfStats.cacheMetrics.hitRate).toBe(0);
+        });
+
+        test('should calculate peak throughput correctly', () => {
+            const result: DetectionResult = {
+                isSuspicious: false,
+                suspicionScore: 15,
+                confidence: 0.8,
+                reasons: [],
+                fingerprint: 'test',
+                metadata: {
+                    timestamp: Date.now(),
+                    processingTime: 25.0,
+                    detectorVersions: { test: '1.0.0' },
+                },
+            };
+
+            const metrics: PerformanceMetrics = {
+                totalProcessingTime: 25.0,
+                fingerprintingTime: 5.0,
+                behaviorAnalysisTime: 8.0,
+                geoAnalysisTime: 7.0,
+                scoringTime: 5.0,
+                memoryUsage: process.memoryUsage(),
+            };
+
+            // Simulate burst of requests
+            for (let i = 0; i < 5; i++) {
+                collector.recordDetection(`192.168.1.${i}`, result, metrics, false);
+            }
+
+            const perfStats = collector.getPerformanceStatistics();
+            expect(perfStats.throughputMetrics.peakRequestsPerSecond).toBeGreaterThan(0);
         });
     });
 });

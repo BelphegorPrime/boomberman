@@ -35,6 +35,15 @@ export interface DetectionConfig {
         suspiciousPatterns: RegExp[];
         /** Signatures of known automation frameworks */
         automationSignatures: RegExp[];
+        /** TLS fingerprinting configuration */
+        tls?: {
+            /** Whether TLS fingerprinting is enabled */
+            enabled: boolean;
+            /** Timeout for TLS analysis in milliseconds */
+            analysisTimeout: number;
+            /** Whether to perform consistency checking with HTTP fingerprints */
+            enableConsistencyCheck: boolean;
+        };
     };
     /** Behavioral analysis configuration */
     behavioral: {
@@ -105,6 +114,11 @@ export const DEFAULT_DETECTION_CONFIG: DetectionConfig = {
             /headless/i,
             /phantom/i,
         ],
+        tls: {
+            enabled: true,
+            analysisTimeout: 100,
+            enableConsistencyCheck: true,
+        },
     },
     behavioral: {
         minHumanInterval: 500, // 500ms

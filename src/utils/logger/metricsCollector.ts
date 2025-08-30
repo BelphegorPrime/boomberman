@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type { DetectionResult } from '../../detection/types/DetectionResult.js';
 import type { DetectionAnalytics, ThreatSummary } from '../../detection/types/Analytics.js';
 import type { PerformanceMetrics } from './detectionLogger.js';
+import { isTest } from '../isTest.js';
 
 /**
  * Real-time metrics for monitoring detection system performance
@@ -85,11 +86,16 @@ export class MetricsCollector extends EventEmitter {
     private cacheHits = 0;
     private cacheMisses = 0;
 
+    private intervals: NodeJS.Timeout[] = [];
+
     constructor() {
         super();
+        this.setMaxListeners(20); // Increase limit for event listeners
 
-        // Start periodic cleanup and aggregation
-        this.startPeriodicTasks();
+        // Start periodic cleanup and aggregation only in non-test environments
+        if (!isTest) {
+            this.startPeriodicTasks();
+        }
     }
 
     /**
@@ -206,11 +212,9 @@ export class MetricsCollector extends EventEmitter {
     }
 
     /**
-     * Get detection analytics
+     * Get detection analytics with enhanced performance metrics
      */
     getDetectionAnalytics(): DetectionAnalytics {
-        const totalCacheRequests = this.cacheHits + this.cacheMisses;
-
         return {
             totalRequests: this.totalRequests,
             suspiciousRequests: this.totalSuspicious,
@@ -224,6 +228,74 @@ export class MetricsCollector extends EventEmitter {
                 .sort((a, b) => b.averageScore - a.averageScore)
                 .slice(0, 10),
             geoDistribution: Object.fromEntries(this.geoDistribution),
+        };
+    }
+
+    /**
+     * Get comprehensive performance statistics
+     */
+    getPerformanceStatistics(): {
+        responseTimePercentiles: {
+            p50: number;
+            p90: number;
+            p95: number;
+            p99: number;
+        };
+        throughputMetrics: {
+            requestsPerSecond: number;
+            peakRequestsPerSecond: number;
+            averageRequestsPerMinute: number;
+        };
+        errorMetrics: {
+            errorRate: number;
+            errorCount: number;
+            errorsByType: Record<string, number>;
+        };
+        resourceUsage: {
+            averageMemoryUsage: number;
+            peakMemoryUsage: number;
+            averageCpuUsage: number;
+        };
+        cacheMetrics: {
+            hitRate: number;
+            totalHits: number;
+            totalMisses: number;
+        };
+    } {
+        const sortedResponseTimes = [...this.responseTimes].sort((a, b) => a - b);
+        const now = Date.now();
+        const windowStart = now - (this.windowSize * 1000);
+        const recentRequests = this.requestCounts.filter(t => t >= windowStart);
+
+        return {
+            responseTimePercentiles: {
+                p50: this.calculatePercentile(sortedResponseTimes, 0.5),
+                p90: this.calculatePercentile(sortedResponseTimes, 0.9),
+                p95: this.calculatePercentile(sortedResponseTimes, 0.95),
+                p99: this.calculatePercentile(sortedResponseTimes, 0.99),
+            },
+            throughputMetrics: {
+                requestsPerSecond: recentRequests.length / this.windowSize,
+                peakRequestsPerSecond: this.calculatePeakThroughput(),
+                averageRequestsPerMinute: this.totalRequests / Math.max(1, (now - this.lastWindowReset) / 60000),
+            },
+            errorMetrics: {
+                errorRate: this.totalRequests > 0 ? this.totalErrors / this.totalRequests : 0,
+                errorCount: this.totalErrors,
+                errorsByType: {}, // Would be populated with actual error categorization
+            },
+            resourceUsage: {
+                averageMemoryUsage: this.calculateAverageMemoryUsage(),
+                peakMemoryUsage: this.calculatePeakMemoryUsage(),
+                averageCpuUsage: this.getCpuUsage(),
+            },
+            cacheMetrics: {
+                hitRate: this.cacheHits + this.cacheMisses > 0
+                    ? this.cacheHits / (this.cacheHits + this.cacheMisses)
+                    : 0,
+                totalHits: this.cacheHits,
+                totalMisses: this.cacheMisses,
+            },
         };
     }
 
@@ -251,6 +323,9 @@ export class MetricsCollector extends EventEmitter {
         this.lastWindowReset = Date.now();
         this.lastHourlyReset = Date.now();
         this.lastDailyReset = Date.now();
+
+        // Stop and clear intervals
+        this.stopPeriodicTasks();
     }
 
     /**
@@ -258,24 +333,32 @@ export class MetricsCollector extends EventEmitter {
      */
     private startPeriodicTasks(): void {
         // Clean up old data every minute
-        setInterval(() => {
+        this.intervals.push(setInterval(() => {
             this.cleanupOldData();
-        }, 60 * 1000);
+        }, 60 * 1000));
 
         // Aggregate hourly stats every hour
-        setInterval(() => {
+        this.intervals.push(setInterval(() => {
             this.aggregateHourlyStats();
-        }, 60 * 60 * 1000);
+        }, 60 * 60 * 1000));
 
         // Aggregate daily stats every day
-        setInterval(() => {
+        this.intervals.push(setInterval(() => {
             this.aggregateDailyStats();
-        }, 24 * 60 * 60 * 1000);
+        }, 24 * 60 * 60 * 1000));
 
         // Emit metrics update every 10 seconds
-        setInterval(() => {
+        this.intervals.push(setInterval(() => {
             this.emit('metricsUpdate', this.getRealTimeMetrics());
-        }, 10 * 1000);
+        }, 10 * 1000));
+    }
+
+    /**
+     * Stop periodic tasks and clean up intervals
+     */
+    public stopPeriodicTasks(): void {
+        this.intervals.forEach(interval => clearInterval(interval));
+        this.intervals = [];
     }
 
     /**
@@ -463,6 +546,63 @@ export class MetricsCollector extends EventEmitter {
         const recentWindow = 10 * 1000; // 10 seconds
         const recentRequests = this.requestCounts.filter(t => t >= now - recentWindow);
         return recentRequests.length;
+    }
+
+    /**
+     * Calculate percentile for response times
+     */
+    private calculatePercentile(sortedArray: number[], percentile: number): number {
+        if (sortedArray.length === 0) return 0;
+
+        const index = Math.ceil(sortedArray.length * percentile) - 1;
+        return sortedArray[Math.max(0, index)];
+    }
+
+    /**
+     * Calculate peak throughput (requests per second)
+     */
+    private calculatePeakThroughput(): number {
+        if (this.requestCounts.length === 0) return 0;
+
+        const now = Date.now();
+        let maxThroughput = 0;
+
+        // Check throughput for each second in the last minute
+        for (let i = 0; i < 60; i++) {
+            const windowEnd = now - (i * 1000);
+            const windowStart = windowEnd - 1000;
+            const requestsInWindow = this.requestCounts.filter(t => t >= windowStart && t < windowEnd);
+            maxThroughput = Math.max(maxThroughput, requestsInWindow.length);
+        }
+
+        // If no historical data, return current window throughput
+        if (maxThroughput === 0 && this.requestCounts.length > 0) {
+            const windowStart = now - (this.windowSize * 1000);
+            const recentRequests = this.requestCounts.filter(t => t >= windowStart);
+            return recentRequests.length / this.windowSize;
+        }
+
+        return maxThroughput;
+    }
+
+    /**
+     * Calculate average memory usage
+     */
+    private calculateAverageMemoryUsage(): number {
+        // This would be calculated from stored memory usage samples
+        // For now, return current memory usage
+        const memUsage = process.memoryUsage();
+        return memUsage.heapUsed;
+    }
+
+    /**
+     * Calculate peak memory usage
+     */
+    private calculatePeakMemoryUsage(): number {
+        // This would be calculated from stored memory usage samples
+        // For now, return current memory usage
+        const memUsage = process.memoryUsage();
+        return memUsage.heapTotal;
     }
 }
 

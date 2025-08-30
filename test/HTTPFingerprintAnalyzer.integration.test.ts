@@ -123,8 +123,8 @@ describe('HTTPFingerprintAnalyzer Integration', () => {
             // Should detect automation signature
             expect(result.automationSignatures).toContain('python-requests');
 
-            // Should have no suspicious headers (python-requests is legitimate but automated)
-            expect(result.suspiciousHeaders).toHaveLength(0);
+            // Should detect suspicious headers (python-requests user-agent is flagged)
+            expect(result.suspiciousHeaders).toContain('user-agent');
 
             // Should have poor header order score due to non-browser order
             expect(result.headerOrderScore).toBeLessThan(0.6);

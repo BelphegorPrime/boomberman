@@ -5,8 +5,16 @@ import { ensureDirExistence } from '../ensureDirExistence.js';
 import { rotateFile, RotateFileOptions } from '../rotateFile.js';
 import { isTest } from '../isTest.js';
 
-let banData: Record<string, { count: number; lastAccess: number }> = {};
-let allBanData: Record<string, { count: number; lastAccess: number }> = {};
+interface BanEntry {
+  count: number;
+  lastAccess: number;
+  suspicionScore?: number;
+  confidence?: number;
+  enhancedDetections?: number;
+}
+
+let banData: Record<string, BanEntry> = {};
+let allBanData: Record<string, BanEntry> = {};
 
 const banFile =
   process.env.BAN_FILE_PATH || path.resolve(process.cwd(), 'data/banned.json');
@@ -61,31 +69,88 @@ function saveBanFile(fullSave?: boolean) {
   }
 }
 
-function createEntry(baseEntry?: { count: number; lastAccess: number }) {
+function createEntry(baseEntry?: BanEntry, suspicionScore?: number, confidence?: number): BanEntry {
   const now = Date.now();
-  const entry = baseEntry || { count: 0, lastAccess: 0 };
+  const entry: BanEntry = baseEntry || {
+    count: 0,
+    lastAccess: 0,
+    enhancedDetections: 0
+  };
   const timeSinceLast = now - entry.lastAccess;
 
   if (timeSinceLast > 30_000) {
     entry.count = 0;
+    entry.enhancedDetections = 0;
   }
 
   entry.count += 1;
   entry.lastAccess = now;
+
+  // Update enhanced detection data if provided
+  if (suspicionScore !== undefined && confidence !== undefined) {
+    entry.suspicionScore = Math.max(entry.suspicionScore || 0, suspicionScore);
+    entry.confidence = Math.max(entry.confidence || 0, confidence);
+    entry.enhancedDetections = (entry.enhancedDetections || 0) + 1;
+  }
+
   return entry;
 }
 
 export function isBanned(ip: string): boolean {
-  return banData[ip] && banData[ip].count >= 3;
+  const entry = banData[ip];
+  if (!entry) return false;
+
+  // Enhanced banning logic considering confidence levels
+  if (entry.enhancedDetections && entry.enhancedDetections > 0) {
+    const suspicionScore = entry.suspicionScore || 0;
+    const confidence = entry.confidence || 0;
+
+    // High confidence, medium-high score - ban after fewer attempts
+    if (confidence >= 0.8 && suspicionScore >= 40) {
+      return entry.count >= 2;
+    }
+
+    // Medium confidence or score - standard threshold
+    if (confidence >= 0.5 || suspicionScore >= 30) {
+      return entry.count >= 3;
+    }
+
+    // Low confidence - require more attempts
+    if (confidence < 0.5 && suspicionScore < 30) {
+      return entry.count >= 5;
+    }
+  }
+
+  // Legacy banning logic - 3 strikes
+  return entry.count >= 3;
 }
 
-export function banIP(ip: string) {
+export function banIP(ip: string): BanEntry {
   const entry = createEntry(banData[ip]);
   banData[ip] = entry;
   allBanData[ip] = createEntry(allBanData[ip]);
 
   saveBanFile(true);
-  console.warn(`BANNED IP: ${ip}`);
+  console.warn(`BANNED IP: ${ip} (Legacy detection)`);
+  return entry;
+}
+
+export function banIPWithConfidence(ip: string, suspicionScore: number, confidence: number): BanEntry {
+  const entry = createEntry(banData[ip], suspicionScore, confidence);
+  banData[ip] = entry;
+  allBanData[ip] = createEntry(allBanData[ip], suspicionScore, confidence);
+
+  saveBanFile(true);
+
+  const logData = {
+    score: suspicionScore,
+    confidence: confidence,
+    count: entry.count,
+    enhancedDetections: entry.enhancedDetections,
+    willBeBanned: isBanned(ip)
+  };
+
+  console.warn(`BANNED IP: ${ip} (Enhanced detection)`, logData);
   return entry;
 }
 
@@ -94,4 +159,31 @@ export function clearBanData() {
     banData = {};
     allBanData = {};
   }
+}
+
+export function getBanEntry(ip: string): BanEntry | undefined {
+  return banData[ip];
+}
+
+export function getBanStatistics(): {
+  totalBannedIPs: number;
+  enhancedDetections: number;
+  legacyDetections: number;
+  averageSuspicionScore: number;
+  averageConfidence: number;
+} {
+  const entries = Object.values(banData);
+  const enhancedEntries = entries.filter(e => e.enhancedDetections && e.enhancedDetections > 0);
+  const legacyEntries = entries.filter(e => !e.enhancedDetections || e.enhancedDetections === 0);
+
+  const totalSuspicionScore = enhancedEntries.reduce((sum, e) => sum + (e.suspicionScore || 0), 0);
+  const totalConfidence = enhancedEntries.reduce((sum, e) => sum + (e.confidence || 0), 0);
+
+  return {
+    totalBannedIPs: entries.length,
+    enhancedDetections: enhancedEntries.length,
+    legacyDetections: legacyEntries.length,
+    averageSuspicionScore: enhancedEntries.length > 0 ? totalSuspicionScore / enhancedEntries.length : 0,
+    averageConfidence: enhancedEntries.length > 0 ? totalConfidence / enhancedEntries.length : 0,
+  };
 }

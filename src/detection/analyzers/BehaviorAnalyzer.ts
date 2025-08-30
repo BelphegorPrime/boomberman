@@ -1,5 +1,6 @@
 import { Request } from 'express';
 import { BehaviorMetrics, SessionData, RequestLog } from '../types/index.js';
+import { detectionErrorHandler, DetectionErrorType } from '../ErrorHandler.js';
 
 /**
  * Configuration interface for behavioral analysis
@@ -35,16 +36,26 @@ export class BehaviorAnalyzer {
      * Analyzes behavioral patterns for a given IP and request
      */
     analyze(ip: string, req: Request): BehaviorMetrics {
-        this.trackSession(ip, req);
-        const session = this.ipSessions.get(ip)!;
+        try {
+            this.trackSession(ip, req);
+            const session = this.ipSessions.get(ip);
 
-        return {
-            requestInterval: this.calculateAverageInterval(session.requests),
-            navigationPattern: this.extractNavigationPattern(session.requests),
-            timingConsistency: this.calculateTimingConsistency(session.requests),
-            humanLikeScore: this.calculateHumanLikeScore(session),
-            sessionDuration: session.lastSeen - session.firstSeen
-        };
+            if (!session) {
+                // Return neutral metrics if session tracking failed
+                return this.createNeutralBehaviorMetrics();
+            }
+
+            return {
+                requestInterval: this.calculateAverageInterval(session.requests),
+                navigationPattern: this.extractNavigationPattern(session.requests),
+                timingConsistency: this.calculateTimingConsistency(session.requests),
+                humanLikeScore: this.calculateHumanLikeScore(session),
+                sessionDuration: session.lastSeen - session.firstSeen
+            };
+        } catch (error) {
+            const behaviorError = error instanceof Error ? error : new Error('Behavior analysis failed');
+            return detectionErrorHandler.handleBehaviorAnalysisError(ip, behaviorError);
+        }
     }
 
     /**
@@ -278,5 +289,18 @@ export class BehaviorAnalyzer {
      */
     clearSessions(): void {
         this.ipSessions.clear();
+    }
+
+    /**
+     * Create neutral behavior metrics for error scenarios
+     */
+    private createNeutralBehaviorMetrics(): BehaviorMetrics {
+        return {
+            requestInterval: 2000, // Neutral 2-second interval
+            navigationPattern: [],
+            timingConsistency: 0.5, // Neutral consistency
+            humanLikeScore: 0.5, // Neutral human-like score
+            sessionDuration: 0,
+        };
     }
 }

@@ -1,5 +1,8 @@
 import { Request } from 'express';
 import { HTTPFingerprint } from '../types/HTTPFingerprint.js';
+import { TLSFingerprintAnalyzer } from './TLSFingerprintAnalyzer.js';
+import { TLSFingerprintingConfig } from '../types/TLSFingerprint.js';
+import { detectionErrorHandler, DetectionErrorType } from '../ErrorHandler.js';
 
 /**
  * Configuration interface for HTTP fingerprinting
@@ -11,6 +14,8 @@ interface FingerprintingConfig {
     suspiciousPatterns: RegExp[];
     /** Signatures of known automation frameworks */
     automationSignatures: RegExp[];
+    /** TLS fingerprinting configuration */
+    tls?: TLSFingerprintingConfig;
 }
 
 /**
@@ -20,6 +25,7 @@ export class HTTPFingerprintAnalyzer {
     private readonly requiredHeaders: string[];
     private readonly suspiciousPatterns: RegExp[];
     private readonly automationSignatures: RegExp[];
+    private readonly tlsAnalyzer: TLSFingerprintAnalyzer;
 
     private static readonly DEFAULT_COMMON_BROWSER_HEADERS = [
         'accept',
@@ -98,22 +104,41 @@ export class HTTPFingerprintAnalyzer {
         this.requiredHeaders = config?.requiredHeaders || HTTPFingerprintAnalyzer.DEFAULT_COMMON_BROWSER_HEADERS;
         this.suspiciousPatterns = config?.suspiciousPatterns || HTTPFingerprintAnalyzer.SUSPICIOUS_HEADER_PATTERNS;
         this.automationSignatures = config?.automationSignatures || HTTPFingerprintAnalyzer.DEFAULT_AUTOMATION_SIGNATURES;
+        this.tlsAnalyzer = new TLSFingerprintAnalyzer(config?.tls);
     }
 
     /**
      * Analyzes an HTTP request to generate a fingerprint
      */
     analyze(req: Request): HTTPFingerprint {
-        const headers = this.normalizeHeaders(req.headers);
+        try {
+            const headers = this.normalizeHeaders(req.headers);
 
-        return {
-            headerSignature: this.generateHeaderSignature(headers),
-            missingHeaders: this.findMissingHeaders(headers),
-            suspiciousHeaders: this.findSuspiciousHeaders(headers),
-            headerOrderScore: this.calculateHeaderOrderScore(req.rawHeaders),
-            automationSignatures: this.detectAutomationFrameworks(headers),
-            tlsFingerprint: this.analyzeTLSFingerprint(req)
-        };
+            // Generate basic HTTP fingerprint first
+            const httpFingerprint: HTTPFingerprint = {
+                headerSignature: this.generateHeaderSignature(headers),
+                missingHeaders: this.findMissingHeaders(headers),
+                suspiciousHeaders: this.findSuspiciousHeaders(headers),
+                headerOrderScore: this.calculateHeaderOrderScore(req.rawHeaders),
+                automationSignatures: this.detectAutomationFrameworks(headers),
+                tlsFingerprint: this.analyzeTLSFingerprintWithFallback(req)
+            };
+
+            // Perform enhanced TLS fingerprinting with error handling
+            try {
+                const tlsFingerprintData = this.tlsAnalyzer.analyze(req, httpFingerprint);
+                httpFingerprint.tlsFingerprintData = tlsFingerprintData;
+            } catch (error) {
+                const tlsError = error instanceof Error ? error : new Error('TLS analysis failed');
+                detectionErrorHandler.handleTLSAnalysisError(tlsError);
+                // Continue without TLS fingerprint data
+            }
+
+            return httpFingerprint;
+        } catch (error) {
+            const fingerprintError = error instanceof Error ? error : new Error('HTTP fingerprinting failed');
+            return detectionErrorHandler.handleFingerprintingError(req, fingerprintError);
+        }
     }
 
     /**
@@ -257,16 +282,25 @@ export class HTTPFingerprintAnalyzer {
     }
 
     /**
-     * Analyzes TLS fingerprint if available (placeholder for future implementation)
+     * Analyzes TLS fingerprint with error handling
+     */
+    private analyzeTLSFingerprintWithFallback(req: Request): string | undefined {
+        try {
+            return this.analyzeTLSFingerprint(req);
+        } catch (error) {
+            const tlsError = error instanceof Error ? error : new Error('TLS fingerprint analysis failed');
+            return detectionErrorHandler.handleTLSAnalysisError(tlsError);
+        }
+    }
+
+    /**
+     * Analyzes TLS fingerprint if available (legacy method for backward compatibility)
      */
     private analyzeTLSFingerprint(req: Request): string | undefined {
-        // TLS fingerprinting requires access to the underlying socket
-        // This is a placeholder for future implementation when TLS data becomes available
-
         // Check if we have any TLS-related information
         const socket = (req as any).socket;
         if (socket && socket.encrypted) {
-            // For now, return a basic indicator that TLS is present
+            // Return basic indicator for backward compatibility
             return 'tls-present';
         }
 

@@ -7,6 +7,7 @@ import type {
     GeoLocation,
     ScoringWeights,
 } from './types/index.js';
+import { detectionErrorHandler, DetectionErrorType } from './ErrorHandler.js';
 
 /**
  * Engine for calculating threat scores based on multiple detection factors
@@ -28,57 +29,139 @@ export class ThreatScoringEngine {
         geo: GeoLocation,
         reputation?: number
     ): DetectionResult {
-        const startTime = process.hrtime.bigint();
-        const reasons: DetectionReason[] = [];
+        try {
+            const startTime = process.hrtime.bigint();
+            const reasons: DetectionReason[] = [];
 
-        // Calculate individual scores
-        const fingerprintScore = this.calculateFingerprintScore(fingerprint, reasons);
-        const behaviorScore = this.calculateBehaviorScore(behavior, reasons);
-        const geoScore = this.calculateGeoScore(geo, reasons);
-        const reputationScore = reputation || 0;
+            // Calculate individual scores with error handling
+            const fingerprintScore = this.calculateFingerprintScoreWithFallback(fingerprint, reasons);
+            const behaviorScore = this.calculateBehaviorScoreWithFallback(behavior, reasons);
+            const geoScore = this.calculateGeoScoreWithFallback(geo, reasons);
+            const reputationScore = reputation || 0;
 
-        if (reputation && reputation > 0) {
-            reasons.push({
-                category: 'reputation',
-                severity: reputation > 50 ? 'high' : reputation > 25 ? 'medium' : 'low',
-                description: `IP has reputation score of ${reputation}`,
-                score: reputation,
-            });
+            if (reputation && reputation > 0) {
+                reasons.push({
+                    category: 'reputation',
+                    severity: reputation > 50 ? 'high' : reputation > 25 ? 'medium' : 'low',
+                    description: `IP has reputation score of ${reputation}`,
+                    score: reputation,
+                });
+            }
+
+            // Combine scores using weighted algorithm
+            const combinedScore = this.combineScores(
+                [fingerprintScore, behaviorScore, geoScore, reputationScore],
+                [this.weights.fingerprint, this.weights.behavioral, this.weights.geographic, this.weights.reputation]
+            );
+
+            // Calculate confidence based on available data quality
+            const confidence = this.determineConfidence([fingerprintScore, behaviorScore, geoScore, reputationScore]);
+
+            // Generate unique fingerprint
+            const requestFingerprint = this.generateFingerprint(fingerprint, behavior, geo);
+
+            const endTime = process.hrtime.bigint();
+            const processingTime = Number(endTime - startTime) / 1_000_000; // Convert to milliseconds
+
+            const metadata: DetectionMetadata = {
+                timestamp: Date.now(),
+                processingTime: Math.round(processingTime * 100) / 100,
+                detectorVersions: {
+                    threatScoringEngine: this.version,
+                },
+                geoData: geo,
+                behaviorData: behavior,
+            };
+
+            return {
+                isSuspicious: combinedScore >= 30, // Default suspicious threshold
+                suspicionScore: Math.round(combinedScore),
+                confidence: Math.round(confidence * 100) / 100,
+                reasons,
+                fingerprint: requestFingerprint,
+                metadata,
+            };
+        } catch (error) {
+            // This should not happen with the individual score fallbacks, but just in case
+            const scoringError = error instanceof Error ? error : new Error('Scoring engine failed');
+            console.error('Critical scoring engine error:', scoringError);
+
+            // Return minimal fallback result
+            return {
+                isSuspicious: false,
+                suspicionScore: 0,
+                confidence: 0.1,
+                reasons: [{
+                    category: 'fingerprint',
+                    severity: 'low',
+                    description: 'Scoring engine error - using minimal fallback',
+                    score: 0,
+                }],
+                fingerprint: 'error-fallback',
+                metadata: {
+                    timestamp: Date.now(),
+                    processingTime: 1,
+                    detectorVersions: {
+                        threatScoringEngine: `${this.version}-error`,
+                    },
+                    errorOccurred: true,
+                },
+            };
         }
+    }
 
-        // Combine scores using weighted algorithm
-        const combinedScore = this.combineScores(
-            [fingerprintScore, behaviorScore, geoScore, reputationScore],
-            [this.weights.fingerprint, this.weights.behavioral, this.weights.geographic, this.weights.reputation]
-        );
+    /**
+     * Calculate fingerprint score with error handling
+     */
+    private calculateFingerprintScoreWithFallback(fingerprint: HTTPFingerprint, reasons: DetectionReason[]): number {
+        try {
+            return this.calculateFingerprintScore(fingerprint, reasons);
+        } catch (error) {
+            console.warn('Fingerprint scoring failed, using fallback:', error);
+            reasons.push({
+                category: 'fingerprint',
+                severity: 'low',
+                description: 'Fingerprint scoring error - using fallback',
+                score: 10,
+            });
+            return 10; // Minimal fallback score
+        }
+    }
 
-        // Calculate confidence based on available data quality
-        const confidence = this.determineConfidence([fingerprintScore, behaviorScore, geoScore, reputationScore]);
+    /**
+     * Calculate behavior score with error handling
+     */
+    private calculateBehaviorScoreWithFallback(behavior: BehaviorMetrics, reasons: DetectionReason[]): number {
+        try {
+            return this.calculateBehaviorScore(behavior, reasons);
+        } catch (error) {
+            console.warn('Behavior scoring failed, using fallback:', error);
+            reasons.push({
+                category: 'behavioral',
+                severity: 'low',
+                description: 'Behavior scoring error - using fallback',
+                score: 5,
+            });
+            return 5; // Minimal fallback score
+        }
+    }
 
-        // Generate unique fingerprint
-        const requestFingerprint = this.generateFingerprint(fingerprint, behavior, geo);
-
-        const endTime = process.hrtime.bigint();
-        const processingTime = Number(endTime - startTime) / 1_000_000; // Convert to milliseconds
-
-        const metadata: DetectionMetadata = {
-            timestamp: Date.now(),
-            processingTime: Math.round(processingTime * 100) / 100,
-            detectorVersions: {
-                threatScoringEngine: this.version,
-            },
-            geoData: geo,
-            behaviorData: behavior,
-        };
-
-        return {
-            isSuspicious: combinedScore >= 30, // Default suspicious threshold
-            suspicionScore: Math.round(combinedScore),
-            confidence: Math.round(confidence * 100) / 100,
-            reasons,
-            fingerprint: requestFingerprint,
-            metadata,
-        };
+    /**
+     * Calculate geo score with error handling
+     */
+    private calculateGeoScoreWithFallback(geo: GeoLocation, reasons: DetectionReason[]): number {
+        try {
+            return this.calculateGeoScore(geo, reasons);
+        } catch (error) {
+            console.warn('Geo scoring failed, using fallback:', error);
+            reasons.push({
+                category: 'geographic',
+                severity: 'low',
+                description: 'Geographic scoring error - using fallback',
+                score: 0,
+            });
+            return 0; // Minimal fallback score
+        }
     }
 
     /**
@@ -88,7 +171,7 @@ export class ThreatScoringEngine {
         let score = 0;
 
         // Missing headers penalty
-        if (fingerprint.missingHeaders.length > 0) {
+        if (fingerprint?.missingHeaders?.length > 0) {
             const penalty = Math.min(fingerprint.missingHeaders.length * 10, 40);
             score += penalty;
             reasons.push({
@@ -100,7 +183,7 @@ export class ThreatScoringEngine {
         }
 
         // Suspicious headers penalty
-        if (fingerprint.suspiciousHeaders.length > 0) {
+        if (fingerprint?.suspiciousHeaders?.length > 0) {
             const penalty = Math.min(fingerprint.suspiciousHeaders.length * 15, 50);
             score += penalty;
             reasons.push({
@@ -112,7 +195,7 @@ export class ThreatScoringEngine {
         }
 
         // Header order score (lower is more suspicious)
-        if (fingerprint.headerOrderScore < 0.5) {
+        if (fingerprint?.headerOrderScore != null && fingerprint.headerOrderScore < 0.5) {
             const penalty = (1 - fingerprint.headerOrderScore) * 30;
             score += penalty;
             reasons.push({
@@ -124,7 +207,7 @@ export class ThreatScoringEngine {
         }
 
         // Automation signatures penalty
-        if (fingerprint.automationSignatures.length > 0) {
+        if (fingerprint?.automationSignatures?.length > 0) {
             const penalty = 80; // High penalty for automation detection
             score += penalty;
             reasons.push({
@@ -135,7 +218,82 @@ export class ThreatScoringEngine {
             });
         }
 
+        // TLS fingerprinting analysis
+        if (fingerprint.tlsFingerprintData) {
+            const tlsScore = this.calculateTLSScore(fingerprint.tlsFingerprintData, reasons);
+            score += tlsScore;
+        }
+
         return Math.min(score, 100);
+    }
+
+    /**
+     * Calculate score based on TLS fingerprinting analysis
+     */
+    private calculateTLSScore(tlsFingerprint: import('./types/TLSFingerprint.js').TLSFingerprint, reasons: DetectionReason[]): number {
+        let score = 0;
+
+        // Known bot pattern detection
+        if (tlsFingerprint.isKnownBotPattern) {
+            const penalty = 70; // High penalty for known bot patterns
+            score += penalty;
+            reasons.push({
+                category: 'fingerprint',
+                severity: 'high',
+                description: 'TLS fingerprint matches known bot pattern',
+                score: penalty,
+            });
+        }
+
+        // TLS/HTTP consistency check
+        if (tlsFingerprint.consistencyScore < 0.7) {
+            const penalty = (0.7 - tlsFingerprint.consistencyScore) * 50;
+            score += penalty;
+            reasons.push({
+                category: 'fingerprint',
+                severity: penalty > 25 ? 'high' : penalty > 10 ? 'medium' : 'low',
+                description: `TLS/HTTP fingerprint inconsistency (score: ${tlsFingerprint.consistencyScore.toFixed(2)})`,
+                score: penalty,
+            });
+        }
+
+        // Unusual TLS version
+        if (tlsFingerprint.tlsVersion && !['771', '772'].includes(tlsFingerprint.tlsVersion)) {
+            const penalty = 20;
+            score += penalty;
+            reasons.push({
+                category: 'fingerprint',
+                severity: 'medium',
+                description: `Unusual TLS version: ${tlsFingerprint.tlsVersion}`,
+                score: penalty,
+            });
+        }
+
+        // Limited cipher suites (typical of automation tools)
+        if (tlsFingerprint.cipherSuites.length > 0 && tlsFingerprint.cipherSuites.length < 3) {
+            const penalty = 15;
+            score += penalty;
+            reasons.push({
+                category: 'fingerprint',
+                severity: 'low',
+                description: `Limited cipher suite support (${tlsFingerprint.cipherSuites.length} suites)`,
+                score: penalty,
+            });
+        }
+
+        // Missing common TLS extensions
+        if (tlsFingerprint.extensions.length < 5) {
+            const penalty = 10;
+            score += penalty;
+            reasons.push({
+                category: 'fingerprint',
+                severity: 'low',
+                description: `Few TLS extensions present (${tlsFingerprint.extensions.length} extensions)`,
+                score: penalty,
+            });
+        }
+
+        return Math.min(score, 50); // Cap TLS score contribution
     }
 
     /**
@@ -145,7 +303,7 @@ export class ThreatScoringEngine {
         let score = 0;
 
         // Sub-human request intervals
-        if (behavior.requestInterval < 500) {
+        if (behavior?.requestInterval != null && behavior.requestInterval < 500) {
             const penalty = Math.max(0, (500 - behavior.requestInterval) / 10);
             score += penalty;
             reasons.push({
@@ -157,7 +315,7 @@ export class ThreatScoringEngine {
         }
 
         // High timing consistency (robotic behavior)
-        if (behavior.timingConsistency > 0.8) {
+        if (behavior?.timingConsistency != null && behavior.timingConsistency > 0.8) {
             const penalty = (behavior.timingConsistency - 0.8) * 100;
             score += penalty;
             reasons.push({
@@ -169,7 +327,7 @@ export class ThreatScoringEngine {
         }
 
         // Low human-like score
-        if (behavior.humanLikeScore < 0.3) {
+        if (behavior?.humanLikeScore != null && behavior.humanLikeScore < 0.3) {
             const penalty = (0.3 - behavior.humanLikeScore) * 100;
             score += penalty;
             reasons.push({
@@ -181,7 +339,7 @@ export class ThreatScoringEngine {
         }
 
         // Suspicious navigation patterns
-        if (behavior.navigationPattern.length > 0) {
+        if (behavior?.navigationPattern?.length > 0) {
             const suspiciousPatterns = behavior.navigationPattern.filter(pattern =>
                 pattern.includes('admin') ||
                 pattern.includes('api') ||
@@ -209,10 +367,10 @@ export class ThreatScoringEngine {
      * Calculate score based on geographic analysis
      */
     private calculateGeoScore(geo: GeoLocation, reasons: DetectionReason[]): number {
-        let score = geo.riskScore; // Base score from GeoAnalyzer
+        let score = geo?.riskScore || 0; // Base score from GeoAnalyzer
 
         // VPN/Proxy penalties
-        if (geo.isVPN) {
+        if (geo?.isVPN) {
             score += 20;
             reasons.push({
                 category: 'geographic',
@@ -222,7 +380,7 @@ export class ThreatScoringEngine {
             });
         }
 
-        if (geo.isProxy) {
+        if (geo?.isProxy) {
             score += 15;
             reasons.push({
                 category: 'geographic',
@@ -232,7 +390,7 @@ export class ThreatScoringEngine {
             });
         }
 
-        if (geo.isHosting) {
+        if (geo?.isHosting) {
             score += 15;
             reasons.push({
                 category: 'geographic',
@@ -242,7 +400,7 @@ export class ThreatScoringEngine {
             });
         }
 
-        if (geo.isTor) {
+        if (geo?.isTor) {
             score += 25;
             reasons.push({
                 category: 'geographic',
@@ -332,14 +490,14 @@ export class ThreatScoringEngine {
      */
     private generateFingerprint(fingerprint: HTTPFingerprint, behavior: BehaviorMetrics, geo: GeoLocation): string {
         const components = [
-            fingerprint.headerSignature,
-            behavior.timingConsistency.toFixed(2),
-            behavior.humanLikeScore.toFixed(2),
-            geo.country,
-            geo.asn.toString(),
-            geo.isVPN ? 'vpn' : '',
-            geo.isProxy ? 'proxy' : '',
-            geo.isHosting ? 'hosting' : '',
+            fingerprint?.headerSignature || 'unknown',
+            behavior?.timingConsistency?.toFixed(2) || '0.00',
+            behavior?.humanLikeScore?.toFixed(2) || '0.00',
+            geo?.country || 'unknown',
+            geo?.asn?.toString() || '0',
+            geo?.isVPN ? 'vpn' : '',
+            geo?.isProxy ? 'proxy' : '',
+            geo?.isHosting ? 'hosting' : '',
         ].filter(Boolean);
 
         // Create hash-like fingerprint

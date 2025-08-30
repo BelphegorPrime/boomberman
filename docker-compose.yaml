@@ -1,12 +1,31 @@
+version: '3.8'
+
 services:
   boomberman:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: boomberman
     ports:
       - '3000:3000'
     volumes:
-      - ./data:/data # persist banned.json here
-      - ./public:/app/public # override or provide static files
+      - ./data:/data:rw # persist logs, banned IPs, and AI responses
+      - ./public:/app/public:ro # static files (read-only)
+      - ./src/data/geoip:/app/src/data/geoip:ro # GeoIP databases (read-only)
     env_file:
       - .env
+    environment:
+      - NODE_ENV=production
+      - DATA_DIR=/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

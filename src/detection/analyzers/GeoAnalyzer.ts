@@ -4,6 +4,7 @@ import { join } from 'path';
 import { dirname } from '../../utils/filesystemConstants.js';
 import { createWriteStream, existsSync, mkdirSync, statSync } from 'fs';
 import { pipeline } from 'stream/promises';
+import { detectionErrorHandler, DetectionErrorType } from '../ErrorHandler.js';
 
 /**
  * Configuration interface for geographic analysis
@@ -238,42 +239,44 @@ export class GeoAnalyzer {
             throw new Error('GeoAnalyzer not initialized. Call initialize() first.');
         }
 
-        try {
-            // Validate IP address format
-            if (!this.isValidIP(ip)) {
-                return this.createDefaultGeoLocation(ip);
-            }
+        return detectionErrorHandler.executeWithErrorHandling(
+            async () => {
+                // Validate IP address format
+                if (!this.isValidIP(ip)) {
+                    return this.createDefaultGeoLocation(ip);
+                }
 
-            // For localhost and private IPs, return default data
-            if (this.isPrivateIP(ip)) {
-                return this.createLocalGeoLocation();
-            }
+                // For localhost and private IPs, return default data
+                if (this.isPrivateIP(ip)) {
+                    return this.createLocalGeoLocation();
+                }
 
-            // Query the MaxMind databases or fall back to simulation
-            const geoData = await this.lookupGeoData(ip);
-            const asnData = await this.lookupASNData(ip);
+                // Query the MaxMind databases or fall back to simulation
+                const geoData = await this.lookupGeoDataWithFallback(ip);
+                const asnData = await this.lookupASNDataWithFallback(ip);
 
-            const geoLocation: GeoLocation = {
-                country: geoData.country,
-                region: geoData.region,
-                city: geoData.city,
-                isVPN: this.detectVPN(asnData.organization),
-                isProxy: this.detectProxy(asnData.organization),
-                isHosting: this.detectHosting(asnData.asn, asnData.organization),
-                isTor: this.detectTor(ip, asnData.organization),
-                riskScore: 0, // Will be calculated below
-                asn: asnData.asn,
-                organization: asnData.organization,
-            };
+                const geoLocation: GeoLocation = {
+                    country: geoData.country,
+                    region: geoData.region,
+                    city: geoData.city,
+                    isVPN: this.detectVPN(asnData.organization),
+                    isProxy: this.detectProxy(asnData.organization),
+                    isHosting: this.detectHosting(asnData.asn, asnData.organization),
+                    isTor: this.detectTor(ip, asnData.organization),
+                    riskScore: 0, // Will be calculated below
+                    asn: asnData.asn,
+                    organization: asnData.organization,
+                };
 
-            // Calculate risk score based on all factors
-            geoLocation.riskScore = this.calculateGeoRisk(geoLocation);
+                // Calculate risk score based on all factors
+                geoLocation.riskScore = this.calculateGeoRisk(geoLocation);
 
-            return geoLocation;
-        } catch (error) {
-            console.error('Error analyzing IP:', ip, error);
-            return this.createDefaultGeoLocation(ip);
-        }
+                return geoLocation;
+            },
+            this.createDefaultGeoLocation(ip),
+            DetectionErrorType.GEO_SERVICE_FAILURE,
+            30000 // 30 second timeout for geo analysis
+        );
     }
 
     /**
@@ -432,48 +435,64 @@ export class GeoAnalyzer {
     }
 
     /**
-     * Lookup geographic data using MaxMind database
+     * Lookup geographic data using MaxMind database with error handling
      */
-    private async lookupGeoData(ip: string): Promise<{ country: string, region: string, city: string }> {
-        if (this.geoDatabase) {
-            try {
-                const result = this.geoDatabase.get(ip);
-                if (result) {
-                    return {
-                        country: result.country?.iso_code || 'unknown',
-                        region: result.subdivisions?.[0]?.names?.en || result.subdivisions?.[0]?.iso_code || 'unknown',
-                        city: result.city?.names?.en || 'unknown',
-                    };
+    private async lookupGeoDataWithFallback(ip: string): Promise<{ country: string, region: string, city: string }> {
+        return detectionErrorHandler.executeWithErrorHandling(
+            async () => {
+                if (this.geoDatabase) {
+                    const result = this.geoDatabase.get(ip);
+                    if (result) {
+                        return {
+                            country: result.country?.iso_code || 'unknown',
+                            region: result.subdivisions?.[0]?.names?.en || result.subdivisions?.[0]?.iso_code || 'unknown',
+                            city: result.city?.names?.en || 'unknown',
+                        };
+                    }
                 }
-            } catch (error) {
-                console.warn('MaxMind geo lookup failed for IP:', ip, error);
-            }
-        }
-
-        // Fall back to simulation if database is not available or lookup fails
-        return this.simulateGeoLookup(ip);
+                throw new Error('No geo database available or no result found');
+            },
+            await this.simulateGeoLookup(ip),
+            DetectionErrorType.DATABASE_ERROR,
+            5000 // 5 second timeout for database lookup
+        );
     }
 
     /**
-     * Lookup ASN data using MaxMind database
+     * Lookup ASN data using MaxMind database with error handling
+     */
+    private async lookupASNDataWithFallback(ip: string): Promise<{ asn: number, organization: string }> {
+        return detectionErrorHandler.executeWithErrorHandling(
+            async () => {
+                if (this.asnDatabase) {
+                    const result = this.asnDatabase.get(ip);
+                    if (result) {
+                        return {
+                            asn: result.autonomous_system_number || 0,
+                            organization: result.autonomous_system_organization || 'unknown',
+                        };
+                    }
+                }
+                throw new Error('No ASN database available or no result found');
+            },
+            await this.simulateASNLookup(ip),
+            DetectionErrorType.DATABASE_ERROR,
+            5000 // 5 second timeout for database lookup
+        );
+    }
+
+    /**
+     * Lookup geographic data using MaxMind database (legacy method for backward compatibility)
+     */
+    private async lookupGeoData(ip: string): Promise<{ country: string, region: string, city: string }> {
+        return this.lookupGeoDataWithFallback(ip);
+    }
+
+    /**
+     * Lookup ASN data using MaxMind database (legacy method for backward compatibility)
      */
     private async lookupASNData(ip: string): Promise<{ asn: number, organization: string }> {
-        if (this.asnDatabase) {
-            try {
-                const result = this.asnDatabase.get(ip);
-                if (result) {
-                    return {
-                        asn: result.autonomous_system_number || 0,
-                        organization: result.autonomous_system_organization || 'unknown',
-                    };
-                }
-            } catch (error) {
-                console.warn('MaxMind ASN lookup failed for IP:', ip, error);
-            }
-        }
-
-        // Fall back to simulation if database is not available or lookup fails
-        return this.simulateASNLookup(ip);
+        return this.lookupASNDataWithFallback(ip);
     }
 
     /**
