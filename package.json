@@ -1,6 +1,6 @@
 {
     "name": "boomberman",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "A honeypot and security testing server for simulated payloads",
     "main": "dist/server.js",
     "type": "module",

@@ -69,7 +69,9 @@ export function tarpit(req: Request, res: Response, next: NextFunction) {
     req.socket.setTimeout(0);
 
     setTimeout(() => {
-      res.status(429).send('Too many suspicious requests. Slow down.');
+      if (!res.headersSent) {
+        res.status(429).send('Too many suspicious requests. Slow down.');
+      }
     }, delay);
 
     return;
